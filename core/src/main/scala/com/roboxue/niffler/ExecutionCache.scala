@@ -9,6 +9,8 @@ import scala.collection.mutable
 class ExecutionCache private (initialState: Map[Key[_], ExecutionCacheEntry[_]]) {
   private val storage = mutable.Map(initialState.toSeq: _*)
 
+  def keys: Iterable[Key[_]] = storage.keys
+
   private[niffler] def getStorage: Map[Key[_], ExecutionCacheEntry[_]] = storage.toMap
 
   def getValues: Map[Key[_], Any] = storage.mapValues(_.result).toMap

@@ -9,6 +9,13 @@ import java.util.UUID
 case class Key[R](name: String, uuid: String = UUID.randomUUID().toString) {
   thisKey =>
 
+  /**
+    * Used by external to reference [[R]]
+    */
+  type R0 = R
+
+  def debugString: String = ???
+
   override def canEqual(that: Any): Boolean = {
     that.isInstanceOf[Key[R]]
   }
@@ -22,36 +29,50 @@ case class Key[R](name: String, uuid: String = UUID.randomUUID().toString) {
   }
 
   def assign(value: => R): Implementation[R] =
-    Implementation(thisKey, new ImplementationDetails[R] {
+    Implementation(thisKey, new ImplementationDetails[R](Set.empty) {
       override private[niffler] def forceEvaluate(cache: ExecutionCache): R = value
-
-      override def dependency: Set[Key[_]] = Set.empty
     })
 
   def dependsOn[T1](k1: Key[T1])(f: (T1) => R): Implementation[R] =
-    Implementation(thisKey, new ImplementationDetails[R] {
+    Implementation(thisKey, new ImplementationDetails[R](Set(k1)) {
       override private[niffler] def forceEvaluate(cache: ExecutionCache): R = {
         f(cache(k1))
       }
-
-      override def dependency: Set[Key[_]] = Set(k1)
     })
 
   def dependsOn[T1, T2](k1: Key[T1], k2: Key[T2])(f: (T1, T2) => R): Implementation[R] =
-    Implementation(thisKey, new ImplementationDetails[R] {
+    Implementation(thisKey, new ImplementationDetails[R](Set(k1, k2)) {
       override private[niffler] def forceEvaluate(cache: ExecutionCache): R = {
         f(cache(k1), cache(k2))
       }
-
-      override def dependency: Set[Key[_]] = Set(k1, k2)
     })
 
   def dependsOn[T1, T2, T3](k1: Key[T1], k2: Key[T2], k3: Key[T3])(f: (T1, T2, T3) => R): Implementation[R] =
-    Implementation(thisKey, new ImplementationDetails[R] {
+    Implementation(thisKey, new ImplementationDetails[R](Set(k1, k2, k3)) {
       override private[niffler] def forceEvaluate(cache: ExecutionCache): R = {
         f(cache(k1), cache(k2), cache(k3))
       }
-
-      override def dependency: Set[Key[_]] = Set(k1, k2, k3)
     })
+
+  def aggregateWith[T1](k1: Key[T1])(f: (R, T1) => R): Implementation[R] =
+    Implementation(thisKey, new ImplementationIncrement[R](Set(k1)) {
+      override private[niffler] def forceEvaluate(cache: ExecutionCache, existingValue: R) = {
+        f(existingValue, cache(k1))
+      }
+    })
+
+  def aggregateWith[T1, T2](k1: Key[T1], k2: Key[T2])(f: (R, T1, T2) => R): Implementation[R] =
+    Implementation(thisKey, new ImplementationIncrement[R](Set(k1, k2)) {
+      override private[niffler] def forceEvaluate(cache: ExecutionCache, existingValue: R) = {
+        f(existingValue, cache(k1), cache(k2))
+      }
+    })
+
+  def aggregateWith[T1, T2, T3](k1: Key[T1], k2: Key[T2], k3: Key[T3])(f: (R, T1, T2, T3) => R): Implementation[R] =
+    Implementation(thisKey, new ImplementationIncrement[R](Set(k1, k2, k3)) {
+      override private[niffler] def forceEvaluate(cache: ExecutionCache, existingValue: R) = {
+        f(existingValue, cache(k1), cache(k2), cache(k3))
+      }
+    })
+
 }

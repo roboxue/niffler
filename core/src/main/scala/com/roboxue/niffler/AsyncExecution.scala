@@ -1,9 +1,12 @@
 package com.roboxue.niffler
 
-import akka.actor.{ActorSystem, PoisonPill, Props}
+import java.util.concurrent.{TimeUnit, TimeoutException}
 
-import scala.concurrent.duration.Duration
-import scala.concurrent.{Await, ExecutionContext, Promise}
+import akka.actor.{ActorRef, ActorSystem, PoisonPill, Props}
+import akka.util.Timeout
+
+import scala.concurrent.duration.{Duration, FiniteDuration}
+import scala.concurrent.{Await, ExecutionContext, Future, Promise}
 
 /**
   * @author rxue
@@ -28,15 +31,44 @@ object AsyncExecution {
   }
 }
 
+/**
+  * Use companion object to create an instance
+  * This class wraps all immutable information about
+  */
 class AsyncExecution[T] private (logic: Logic, initialCache: ExecutionCache, forKey: Key[T], system: ActorSystem) {
-  val promise: Promise[ExecutionResult[T]] = Promise()
+  private val promise: Promise[ExecutionResult[T]] = Promise()
+  private lazy val executionActor: ActorRef =
+    system.actorOf(Props(new ExecutionActor[T](promise, logic, initialCache, forKey)))
 
-  private[niffler] def await: ExecutionResult[T] = {
-    Await.result(promise.future, Duration.Inf)
+  def future: Future[ExecutionResult[T]] = promise.future
+
+  /**
+    * Wrapper around Await(promise.future, timeout), yield a more friendly [[NifflerTimeoutException]] on timeout
+    * @param timeout either [[Duration.Inf]] or a [[FiniteDuration]]
+    * @return execution result if successfully executed
+    * @throws NifflerTimeoutException if timeout
+    * @throws NifflerEvaluationException if runtime exception encountered
+    */
+  def await(timeout: Duration): ExecutionResult[T] = {
+    try {
+      Await.result(promise.future, timeout)
+    } catch {
+      case _: TimeoutException if timeout.isFinite() =>
+        import akka.pattern._
+        val cancelTimeout = Duration(3, TimeUnit.SECONDS)
+        val snapshot = Await.result(
+          (executionActor ? ExecutionActor.Cancel)(Timeout(cancelTimeout)).mapTo[ExecutionSnapshot],
+          cancelTimeout
+        )
+        throw NifflerTimeoutException(snapshot, timeout.asInstanceOf[FiniteDuration])
+      case ex: Throwable =>
+        throw ex
+    } finally {
+      executionActor ! PoisonPill
+    }
   }
 
   private[niffler] def trigger(): AsyncExecution[T] = {
-    val executionActor = system.actorOf(Props(new ExecutionActor[T](promise, logic, initialCache, forKey)))
     executionActor ! ExecutionActor.Invoke
     promise.future.onComplete(_ => executionActor ! PoisonPill)(ExecutionContext.global)
     this
