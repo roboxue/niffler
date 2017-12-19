@@ -9,7 +9,10 @@ import scala.util.{Failure, Success}
   * @author rxue
   * @since 12/18/17.
   */
-class ExecutionActor[T](promise: Promise[SyncExecution[T]], logic: Logic, initialCache: ExecutionCache, forKey: Key[T])
+class ExecutionActor[T](promise: Promise[ExecutionResult[T]],
+                        logic: Logic,
+                        initialCache: ExecutionCache,
+                        forKey: Key[T])
     extends Actor {
   val cacheDelta: ExecutionCache = ExecutionCache.empty
   val unmetDependencies: Set[Key[_]] = {
@@ -24,7 +27,7 @@ class ExecutionActor[T](promise: Promise[SyncExecution[T]], logic: Logic, initia
     case ExecutionActor.Invoke =>
       val ec = executionCache
       if (unmetDependencies.isEmpty) {
-        promise.trySuccess(SyncExecution(ec(forKey), ec))
+        promise.trySuccess(ExecutionResult(ec(forKey), logic, ec))
       } else {
         for (k <- unmetDependencies) {
           if (logic.dependencyMet(k, ec)) {
@@ -32,16 +35,15 @@ class ExecutionActor[T](promise: Promise[SyncExecution[T]], logic: Logic, initia
           }
         }
       }
-    case KeyEvaluationActor.EvaluateComplete(key, tryResult) =>
+    case KeyEvaluationActor.EvaluateComplete(key, tryResult, stats) =>
       tryResult match {
         case Failure(ex) =>
-          // TODO: proper reporting
-          promise.tryFailure(ex)
+          promise.tryFailure(NifflerEvaluationException(logic, forKey, key, stats, ex))
         case Success(result) =>
           // TODO: this is where cache policy applies
-          cacheDelta.store(key, result)
+          cacheDelta.store(key, result, stats)
           if (key == forKey) {
-            promise.trySuccess(SyncExecution(result.asInstanceOf[T], executionCache))
+            promise.trySuccess(ExecutionResult(result.asInstanceOf[T], logic, executionCache))
           } else {
             val parents = logic.getParents(key)
             for (k <- parents.intersect(unmetDependencies)) {

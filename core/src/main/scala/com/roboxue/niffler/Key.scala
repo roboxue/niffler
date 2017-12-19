@@ -17,6 +17,10 @@ case class Key[R](name: String, uuid: String = UUID.randomUUID().toString) {
     canEqual(obj) && obj.asInstanceOf[Key[R]].uuid == uuid
   }
 
+  override def hashCode(): Int = {
+    uuid.hashCode
+  }
+
   def assign(value: => R): Implementation[R] =
     Implementation(thisKey, new ImplementationDetails[R] {
       override private[niffler] def forceEvaluate(cache: ExecutionCache): R = value

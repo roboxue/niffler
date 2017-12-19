@@ -1,5 +1,7 @@
 package com.roboxue.niffler
 
+import java.time.Clock
+
 import akka.actor.Actor
 
 import scala.util.Try
@@ -8,13 +10,13 @@ import scala.util.Try
   * @author rxue
   * @since 12/18/17.
   */
-class KeyEvaluationActor[T](impl: Implementation[T]) extends Actor {
+class KeyEvaluationActor[T](impl: Implementation[T], clock: Clock = Clock.systemUTC()) extends Actor {
   override def receive: Receive = {
     case KeyEvaluationActor.Evaluate(executionCache) =>
-      println(s"start ${impl.key.name}")
+      val start = clock.millis()
       val result = Try(impl.implementationDetails.forceEvaluate(executionCache))
-      println(s"end ${impl.key.name}")
-      sender() ! KeyEvaluationActor.EvaluateComplete(impl.key, result)
+      val end = clock.millis()
+      sender() ! KeyEvaluationActor.EvaluateComplete(impl.key, result, KeyEvaluationStats(start, end))
   }
 }
 
@@ -22,6 +24,6 @@ object KeyEvaluationActor {
 
   case class Evaluate(executionCache: ExecutionCache)
 
-  case class EvaluateComplete[T](key: Key[T], result: Try[T])
+  case class EvaluateComplete[T](key: Key[T], result: Try[T], stats: KeyEvaluationStats)
 
 }

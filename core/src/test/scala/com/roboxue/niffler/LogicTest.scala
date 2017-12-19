@@ -2,13 +2,14 @@ package com.roboxue.niffler
 
 import akka.actor.ActorSystem
 import akka.testkit.TestKit
+import org.jgrapht.alg.shortestpath.AllDirectedPaths
 import org.scalatest.{FlatSpecLike, Matchers}
 
 /**
   * @author rxue
   * @since 12/18/17.
   */
-class LogicTest extends TestKit(ActorSystem("MySpec")) with FlatSpecLike with Matchers {
+class LogicTest extends TestKit(ActorSystem("NifflerTest")) with FlatSpecLike with Matchers {
   AsyncExecution.setActorSystem(system)
 
   it should "run" in {
@@ -27,8 +28,30 @@ class LogicTest extends TestKit(ActorSystem("MySpec")) with FlatSpecLike with Ma
       k2 + k3 + 1
     }))
 
-    val SyncExecution(result, cache) = logic.syncRun(k1)
+    val ExecutionResult(result, _, cache) = logic.syncRun(k1)
     result shouldBe 14
-    cache.getStorage shouldBe Map(k1 -> 14, k2 -> 6, k3 -> 7, k4 -> 4)
+    cache.getValues shouldBe Map(k1 -> 14, k2 -> 6, k3 -> 7, k4 -> 4)
+  }
+
+  it should "report exception" in {
+    val k1 = Key[Int]("k1")
+    val k2 = Key[Int]("k2")
+    val k3 = Key[Int]("k3")
+    val logic = Logic(Seq(k1.assign({
+      throw new Exception("hello niffler")
+    }), k2.dependsOn(k1) { k1 =>
+      k1 + 1
+    }, k3.dependsOn(k2) { (k2) =>
+      k2 + 1
+    }))
+
+    val nifflerEx = intercept[NifflerEvaluationException] {
+      logic.syncRun(k3)
+    }
+    nifflerEx.keyToEvaluate shouldBe k3
+    nifflerEx.keyWithException shouldBe k1
+    nifflerEx.exception.getMessage shouldBe "hello niffler"
+    nifflerEx.getPaths.length shouldBe 1
+    nifflerEx.getPaths.head.getVertexList.toArray shouldBe Array(k1, k2, k3)
   }
 }

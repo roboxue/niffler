@@ -1,44 +1,23 @@
 package com.roboxue.niffler
 
 import org.jgrapht.Graphs
-
-import scala.collection.JavaConversions._
 import org.jgrapht.graph.{DefaultEdge, DirectedAcyclicGraph}
 
+import scala.collection.JavaConversions._
 import scala.collection.mutable.ListBuffer
 
 /**
   * @author rxue
   * @since 12/15/17.
   */
-class Logic(binding: Map[Key[_], ImplementationDetails[_]]) {
-  lazy val topology: DirectedAcyclicGraph[Key[_], DefaultEdge] =
-    new DirectedAcyclicGraph[Key[_], DefaultEdge](classOf[DefaultEdge])
-
-  for ((key, impl) <- binding) {
-    topology.addVertex(key)
-    for (dep <- impl.dependency) {
-      topology.addVertex(dep)
-      topology.addEdge(dep, key)
-    }
-  }
-
+class Logic(private[niffler] val topology: DirectedAcyclicGraph[Key[_], DefaultEdge],
+            bindings: Map[Key[_], ImplementationDetails[_]]) {
   def getDependents(key: Key[_]): Set[Key[_]] = {
-    topology
-      .incomingEdgesOf(key)
-      .map(edge => {
-        Graphs.getOppositeVertex(topology, edge, key)
-      })
-      .toSet
+    Graphs.predecessorListOf(topology, key).toSet
   }
 
   def getParents(key: Key[_]): Set[Key[_]] = {
-    topology
-      .outgoingEdgesOf(key)
-      .map(edge => {
-        Graphs.getOppositeVertex(topology, edge, key)
-      })
-      .toSet
+    Graphs.successorListOf(topology, key).toSet
   }
 
   def getUnmetDependencies(key: Key[_], executionCache: ExecutionCache): Set[Key[_]] = {
@@ -60,13 +39,13 @@ class Logic(binding: Map[Key[_], ImplementationDetails[_]]) {
   }
 
   def implForKey[T](key: Key[T]): Implementation[T] =
-    Implementation(key, binding(key).asInstanceOf[ImplementationDetails[T]])
+    Implementation(key, bindings(key).asInstanceOf[ImplementationDetails[T]])
 
   def asyncRun[T](key: Key[T], cache: ExecutionCache = ExecutionCache.empty): AsyncExecution[T] = {
     AsyncExecution(this, key, cache)
   }
 
-  def syncRun[T](key: Key[T], cache: ExecutionCache = ExecutionCache.empty): SyncExecution[T] = {
+  def syncRun[T](key: Key[T], cache: ExecutionCache = ExecutionCache.empty): ExecutionResult[T] = {
     asyncRun(key, cache).await
   }
 
@@ -74,6 +53,13 @@ class Logic(binding: Map[Key[_], ImplementationDetails[_]]) {
 
 object Logic {
   def apply(binding: Seq[Implementation[_]]): Logic = {
-    new Logic(binding.map(r => r.key -> r.implementationDetails).toMap)
+    val topology = new DirectedAcyclicGraph[Key[_], DefaultEdge](classOf[DefaultEdge])
+    val bindingMap: Map[Key[_], ImplementationDetails[_]] = binding.map(r => r.key -> r.implementationDetails).toMap
+
+    for ((key, impl) <- bindingMap) {
+      Graphs.addIncomingEdges(topology, key, impl.dependency)
+    }
+
+    new Logic(topology, bindingMap)
   }
 }

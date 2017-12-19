@@ -1,6 +1,6 @@
 package com.roboxue.niffler
 
-import akka.actor.{ActorRef, ActorSystem, PoisonPill, Props}
+import akka.actor.{ActorSystem, PoisonPill, Props}
 
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, ExecutionContext, Promise}
@@ -29,9 +29,9 @@ object AsyncExecution {
 }
 
 class AsyncExecution[T] private (logic: Logic, initialCache: ExecutionCache, forKey: Key[T], system: ActorSystem) {
-  val promise: Promise[SyncExecution[T]] = Promise()
+  val promise: Promise[ExecutionResult[T]] = Promise()
 
-  private[niffler] def await: SyncExecution[T] = {
+  private[niffler] def await: ExecutionResult[T] = {
     Await.result(promise.future, Duration.Inf)
   }
 
