@@ -18,17 +18,11 @@ class ExecutionActor[T](promise: Promise[ExecutionResult[T]],
                         forKey: Key[T],
                         clock: Clock = Clock.systemUTC())
     extends Actor {
-  val cacheDelta: ExecutionCache = ExecutionCache.empty
+  val mutableCache: MutableExecutionCache = initialCache.mutableFork
   val executionStartTime: mutable.Map[Key[_], Long] = mutable.Map.empty
   var invokeTime: Long = 0L
   var cancelled: Boolean = false
-  val unmetDependencies: Set[Key[_]] = {
-    logic.getUnmetDependencies(forKey, executionCache)
-  }
-
-  def executionCache: ExecutionCache = {
-    initialCache merge cacheDelta
-  }
+  var unmetDependencies: Set[Key[_]] = Set.empty
 
   def triggerEval(key: Key[_]): Unit = {
     executionStartTime(key) = clock.millis()
@@ -39,18 +33,19 @@ class ExecutionActor[T](promise: Promise[ExecutionResult[T]],
           logic.implForKey(key).asInstanceOf[ImplementationDetails[key.R0]]
         )
       )
-    ) ! KeyEvaluationActor.Evaluate(executionCache)
+    ) ! KeyEvaluationActor.Evaluate(mutableCache.fork)
   }
 
   override def receive: Receive = {
     case ExecutionActor.Cancel =>
       cancelled = true
-      val ec = executionCache
-      sender() ! ExecutionSnapshot(logic, forKey, ec, executionStartTime.toMap -- ec.keys, invokeTime)
+      sender() ! getExecutionSnapshot
     case ExecutionActor.Invoke =>
       if (!cancelled) {
         invokeTime = clock.millis()
-        val ec = executionCache
+        val ec = mutableCache.fork
+        // Check TTL during invoke, invalidate
+        unmetDependencies = logic.getUnmetDependencies(forKey, ec)
         if (unmetDependencies.isEmpty) {
           promise.trySuccess(ExecutionResult(ec(forKey), logic, ec))
         } else {
@@ -64,20 +59,34 @@ class ExecutionActor[T](promise: Promise[ExecutionResult[T]],
         val stats = KeyEvaluationStats(executionStartTime(key), clock.millis())
         tryResult match {
           case Failure(ex) =>
-            promise.tryFailure(NifflerEvaluationException(logic, forKey, key, stats, ex))
+            promise.tryFailure(NifflerEvaluationException(getExecutionSnapshot, key, stats, ex))
           case Success(result) =>
-            // TODO: this is where cache policy applies
-            cacheDelta.store(key, result, stats)
+            logic.cachingPolicy(key) match {
+              case CachingPolicy.WithinExecution | CachingPolicy.Forever =>
+                mutableCache.store(key, result, stats, None)
+              case CachingPolicy.Timed(ttl) =>
+                mutableCache.store(key, result, stats, Some(ttl.length))
+              case CachingPolicy.Never =>
+              // pass
+            }
             if (key == forKey) {
-              promise.trySuccess(ExecutionResult(result.asInstanceOf[T], logic, executionCache))
+              val keysCachedOnlyWithinExecution =
+                logic.keys.filter(k => logic.cachingPolicy(k) == CachingPolicy.WithinExecution)
+              val cacheAfterExecution = mutableCache.omit(keysCachedOnlyWithinExecution)
+              promise.trySuccess(ExecutionResult(result.asInstanceOf[T], logic, cacheAfterExecution))
             } else {
-              val parents = logic.getParents(key)
-              for (k <- parents.intersect(unmetDependencies) if logic.allDependenciesMet(k, executionCache)) {
+              val ec = mutableCache.fork
+              for (k <- logic.getParents(key).intersect(unmetDependencies) if logic.allDependenciesMet(k, ec)) {
                 triggerEval(k)
               }
             }
         }
       }
+  }
+
+  def getExecutionSnapshot: ExecutionSnapshot = {
+    val ec = mutableCache.fork
+    ExecutionSnapshot(logic, forKey, ec, executionStartTime.toMap -- ec.keys, invokeTime)
   }
 }
 

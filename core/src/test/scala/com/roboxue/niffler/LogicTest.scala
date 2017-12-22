@@ -72,7 +72,7 @@ class LogicTest extends TestKit(ActorSystem("NifflerTest")) with FlatSpecLike wi
     val nifflerEx = intercept[NifflerEvaluationException] {
       logic.syncRun(k3)
     }
-    nifflerEx.keyToEvaluate shouldBe k3
+    nifflerEx.snapshot.keyToEvaluate shouldBe k3
     nifflerEx.keyWithException shouldBe k1
     nifflerEx.exception.getMessage shouldBe "hello niffler"
     nifflerEx.getPaths.length shouldBe 1

@@ -13,7 +13,8 @@ import scala.concurrent.duration.Duration
   * @since 12/15/17.
   */
 class Logic(private[niffler] val topology: DirectedAcyclicGraph[Key[_], DefaultEdge],
-            bindings: Map[Key[_], ImplementationDetails[_]]) {
+            bindings: Map[Key[_], ImplementationDetails[_]],
+            cachingPolicies: Map[Key[_], CachingPolicy]) {
 
   /**
     * Try execute the key in async mode
@@ -66,6 +67,10 @@ class Logic(private[niffler] val topology: DirectedAcyclicGraph[Key[_], DefaultE
 
   def implForKey[T](key: Key[T]): ImplementationDetails[T] = bindings(key).asInstanceOf[ImplementationDetails[T]]
 
+  def keys: Set[Key[_]] = topology.vertexSet().toSet
+
+  def cachingPolicy(key: Key[_]): CachingPolicy = cachingPolicies.getOrElse(key, CachingPolicy.Forever)
+
   private[niffler] def allDependenciesMet(key: Key[_], executionCache: ExecutionCache): Boolean = {
     getDependents(key).forall(executionCache.hit)
   }
@@ -77,11 +82,12 @@ object Logic {
   /**
     *
     * @param binding implementations contained in the logic
+    * @param cachingPolicies override [[CachingPolicy]] for each key. Default is [[CachingPolicy.Forever]]
     * @throws IllegalArgumentException if there is a self-reference cycle found in the logic
     * @throws NoSuchElementException if an implementation is missing
     * @return
     */
-  def apply(binding: Seq[Implementation[_]]): Logic = {
+  def apply(binding: Seq[Implementation[_]], cachingPolicies: Map[Key[_], CachingPolicy] = Map.empty): Logic = {
     val topology = new DirectedAcyclicGraph[Key[_], DefaultEdge](classOf[DefaultEdge])
     val finalBindingMap: mutable.Map[Key[_], ImplementationDetails[_]] = mutable.Map.empty
     for (Implementation(key, sketch) <- binding) {
@@ -104,6 +110,6 @@ object Logic {
       Graphs.addIncomingEdges(topology, key, impl.dependency)
     }
 
-    new Logic(topology, finalBindingMap.toMap)
+    new Logic(topology, finalBindingMap.toMap, cachingPolicies)
   }
 }

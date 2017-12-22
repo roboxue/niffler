@@ -11,7 +11,9 @@ import scala.util.Try
 class KeyEvaluationActor[T](key: Key[T], impl: ImplementationDetails[T]) extends Actor {
   override def receive: Receive = {
     case KeyEvaluationActor.Evaluate(executionCache) =>
-      val result = Try(impl.forceEvaluate(executionCache))
+      val result = scala.concurrent.blocking {
+        Try(impl.forceEvaluate(executionCache))
+      }
       sender() ! KeyEvaluationActor.EvaluateComplete(key, result)
   }
 }
