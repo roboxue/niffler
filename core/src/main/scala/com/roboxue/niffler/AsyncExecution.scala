@@ -4,6 +4,12 @@ import java.util.concurrent.{TimeUnit, TimeoutException}
 
 import akka.actor.{ActorRef, ActorSystem, PoisonPill}
 import akka.util.Timeout
+import com.roboxue.niffler.execution.{
+  ExecutionActor,
+  ExecutionSnapshot,
+  NifflerEvaluationException,
+  NifflerTimeoutException
+}
 
 import scala.concurrent.duration.{Duration, FiniteDuration}
 import scala.concurrent.{Await, ExecutionContext, Future, Promise}

@@ -1,4 +1,6 @@
-package com.roboxue.niffler
+package com.roboxue.niffler.execution
+
+import com.roboxue.niffler.{ExecutionCache, ExecutionResult}
 
 import scala.concurrent.duration.FiniteDuration
 

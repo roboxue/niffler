@@ -1,5 +1,6 @@
 package com.roboxue.niffler
 
+import com.roboxue.niffler.execution.{CachingPolicy, NifflerEvaluationException, NifflerTimeoutException}
 import org.jgrapht.Graphs
 import org.jgrapht.graph.{DefaultEdge, DirectedAcyclicGraph}
 
@@ -13,7 +14,7 @@ import scala.concurrent.duration.Duration
   * @since 12/15/17.
   */
 class Logic(private[niffler] val topology: DirectedAcyclicGraph[Token[_], DefaultEdge],
-            bindings: Map[Token[_], ImplementationDetails[_]],
+            bindings: Map[Token[_], DirectImplementation[_]],
             cachingPolicies: Map[Token[_], CachingPolicy]) {
 
   /**
@@ -65,8 +66,8 @@ class Logic(private[niffler] val topology: DirectedAcyclicGraph[Token[_], Defaul
     unmet
   }
 
-  def implForToken[T](token: Token[T]): ImplementationDetails[T] =
-    bindings(token).asInstanceOf[ImplementationDetails[T]]
+  def implForToken[T](token: Token[T]): DirectImplementation[T] =
+    bindings(token).asInstanceOf[DirectImplementation[T]]
 
   def tokensInvolved: Set[Token[_]] = topology.vertexSet().toSet
 
@@ -90,16 +91,16 @@ object Logic {
     */
   def apply(binding: Seq[Implementation[_]], cachingPolicies: Map[Token[_], CachingPolicy] = Map.empty): Logic = {
     val topology = new DirectedAcyclicGraph[Token[_], DefaultEdge](classOf[DefaultEdge])
-    val finalBindingMap: mutable.Map[Token[_], ImplementationDetails[_]] = mutable.Map.empty
+    val finalBindingMap: mutable.Map[Token[_], DirectImplementation[_]] = mutable.Map.empty
     for (Implementation(token, sketch) <- binding) {
       sketch match {
-        case d: ImplementationDetails[_] =>
+        case d: DirectImplementation[_] =>
           finalBindingMap(token) = d
-        case i: ImplementationIncrement[_] =>
+        case i: IncrementalImplementation[_] =>
           if (finalBindingMap.contains(token)) {
             finalBindingMap(token) = i
-              .asInstanceOf[ImplementationIncrement[token.R0]]
-              .merge(finalBindingMap(token).asInstanceOf[ImplementationDetails[token.R0]])
+              .asInstanceOf[IncrementalImplementation[token.R0]]
+              .merge(finalBindingMap(token).asInstanceOf[DirectImplementation[token.R0]])
           } else {
             throw new NoSuchElementException(
               s"no implementation has been provided for token ${token.debugString} prior to it depends on itself"

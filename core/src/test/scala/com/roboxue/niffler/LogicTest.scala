@@ -4,6 +4,7 @@ import java.util.concurrent.TimeUnit
 
 import akka.actor.ActorSystem
 import akka.testkit.TestKit
+import com.roboxue.niffler.execution.{NifflerEvaluationException, NifflerTimeoutException}
 import org.scalatest.{FlatSpecLike, Matchers}
 
 import scala.concurrent.duration.Duration

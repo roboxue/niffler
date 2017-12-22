@@ -1,6 +1,7 @@
 package com.roboxue.niffler
 
 import java.util.UUID
+
 import scala.reflect.runtime.universe.TypeTag
 
 /**
@@ -45,14 +46,14 @@ object Token {
     thisToken: Token[R] =>
 
     def aggregateWith[T1](k1: Token[T1])(f: (R, T1) => R): Implementation[R] =
-      Implementation(thisToken, new ImplementationIncrement[R](Set(k1)) {
+      Implementation(thisToken, new IncrementalImplementation[R](Set(k1)) {
         override private[niffler] def forceEvaluate(cache: ExecutionCache, existingValue: R) = {
           f(existingValue, cache(k1))
         }
       })
 
     def aggregateWith[T1, T2](k1: Token[T1], k2: Token[T2])(f: (R, T1, T2) => R): Implementation[R] =
-      Implementation(thisToken, new ImplementationIncrement[R](Set(k1, k2)) {
+      Implementation(thisToken, new IncrementalImplementation[R](Set(k1, k2)) {
         override private[niffler] def forceEvaluate(cache: ExecutionCache, existingValue: R) = {
           f(existingValue, cache(k1), cache(k2))
         }
@@ -61,7 +62,7 @@ object Token {
     def aggregateWith[T1, T2, T3](k1: Token[T1], k2: Token[T2], k3: Token[T3])(
       f: (R, T1, T2, T3) => R
     ): Implementation[R] =
-      Implementation(thisToken, new ImplementationIncrement[R](Set(k1, k2, k3)) {
+      Implementation(thisToken, new IncrementalImplementation[R](Set(k1, k2, k3)) {
         override private[niffler] def forceEvaluate(cache: ExecutionCache, existingValue: R) = {
           f(existingValue, cache(k1), cache(k2), cache(k3))
         }
@@ -71,21 +72,21 @@ object Token {
   trait DependsOnOps[R] {
     thisToken: Token[R] =>
     def dependsOn[T1](k1: Token[T1])(f: (T1) => R): Implementation[R] =
-      Implementation(thisToken, new ImplementationDetails[R](Set(k1)) {
+      Implementation(thisToken, new DirectImplementation[R](Set(k1)) {
         override private[niffler] def forceEvaluate(cache: ExecutionCache): R = {
           f(cache(k1))
         }
       })
 
     def dependsOn[T1, T2](k1: Token[T1], k2: Token[T2])(f: (T1, T2) => R): Implementation[R] =
-      Implementation(thisToken, new ImplementationDetails[R](Set(k1, k2)) {
+      Implementation(thisToken, new DirectImplementation[R](Set(k1, k2)) {
         override private[niffler] def forceEvaluate(cache: ExecutionCache): R = {
           f(cache(k1), cache(k2))
         }
       })
 
     def dependsOn[T1, T2, T3](k1: Token[T1], k2: Token[T2], k3: Token[T3])(f: (T1, T2, T3) => R): Implementation[R] =
-      Implementation(thisToken, new ImplementationDetails[R](Set(k1, k2, k3)) {
+      Implementation(thisToken, new DirectImplementation[R](Set(k1, k2, k3)) {
         override private[niffler] def forceEvaluate(cache: ExecutionCache): R = {
           f(cache(k1), cache(k2), cache(k3))
         }
@@ -97,7 +98,7 @@ object Token {
     thisToken: Token[R] =>
 
     def assign(value: => R): Implementation[R] =
-      Implementation(thisToken, new ImplementationDetails[R](Set.empty) {
+      Implementation(thisToken, new DirectImplementation[R](Set.empty) {
         override private[niffler] def forceEvaluate(cache: ExecutionCache): R = value
       })
   }

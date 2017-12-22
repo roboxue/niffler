@@ -1,4 +1,7 @@
-package com.roboxue.niffler
+package com.roboxue.niffler.execution
+
+import com.roboxue.niffler.{ExecutionCache, Logic, Token}
+
 import scala.language.existentials
 
 /**

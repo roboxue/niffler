@@ -1,5 +1,7 @@
 package com.roboxue.niffler
 
+import com.roboxue.niffler.execution.{ExecutionCacheEntry, TokenEvaluationStats}
+
 import scala.collection.mutable
 
 /**

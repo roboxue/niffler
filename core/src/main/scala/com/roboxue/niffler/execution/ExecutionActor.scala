@@ -1,8 +1,9 @@
-package com.roboxue.niffler
+package com.roboxue.niffler.execution
 
 import java.time.Clock
 
 import akka.actor.{Actor, Props}
+import com.roboxue.niffler.{execution, _}
 
 import scala.collection.mutable
 import scala.concurrent.Promise
@@ -82,7 +83,7 @@ class ExecutionActor[T](promise: Promise[ExecutionResult[T]],
 
   def getExecutionSnapshot: ExecutionSnapshot = {
     val ec = mutableCache.fork
-    ExecutionSnapshot(logic, forToken, ec, executionStartTime.toMap -- ec.tokens, invokeTime, clock.millis())
+    execution.ExecutionSnapshot(logic, forToken, ec, executionStartTime.toMap -- ec.tokens, invokeTime, clock.millis())
   }
 }
 
