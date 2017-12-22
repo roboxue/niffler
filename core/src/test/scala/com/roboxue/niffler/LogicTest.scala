@@ -16,11 +16,11 @@ class LogicTest extends TestKit(ActorSystem("NifflerTest")) with FlatSpecLike wi
   AsyncExecution.setActorSystem(system)
 
   it should "run" in {
-    val k1 = Key[Int]("k1")
-    val k2 = Key[Int]("k2")
-    val k3 = Key[Int]("k3")
-    val k4 = Key[Int]("k4")
-    val k5 = Key[Int]("k5")
+    val k1 = Token[Int]("k1")
+    val k2 = Token[Int]("k2")
+    val k3 = Token[Int]("k3")
+    val k4 = Token[Int]("k4")
+    val k5 = Token[Int]("k5")
     val logic = Logic(Seq(k5.dependsOn(k4) { (k4: Int) =>
       k4 + 5
     }, k4.assign(4), k3.dependsOn(k4) { k4 =>
@@ -37,11 +37,11 @@ class LogicTest extends TestKit(ActorSystem("NifflerTest")) with FlatSpecLike wi
   }
 
   it should "aggregate" in {
-    val k1 = Key[Int]("k1")
-    val k2 = Key[Int]("k2")
-    val k3 = Key[Int]("k3")
-    val k4 = Key[Int]("k4")
-    val k5 = Key[Int]("k5")
+    val k1 = Token[Int]("k1")
+    val k2 = Token[Int]("k2")
+    val k3 = Token[Int]("k3")
+    val k4 = Token[Int]("k4")
+    val k5 = Token[Int]("k5")
     val logic = Logic(Seq(k1.assign(1), k2.assign(2), k3.dependsOn(k1) { (v1) =>
       v1 + 2
     }, k4.dependsOn(k2) { (v2) =>
@@ -58,9 +58,9 @@ class LogicTest extends TestKit(ActorSystem("NifflerTest")) with FlatSpecLike wi
   }
 
   it should "report runtime exception" in {
-    val k1 = Key[Int]("k1")
-    val k2 = Key[Int]("k2")
-    val k3 = Key[Int]("k3")
+    val k1 = Token[Int]("k1")
+    val k2 = Token[Int]("k2")
+    val k3 = Token[Int]("k3")
     val logic = Logic(Seq(k1.assign({
       throw new Exception("hello niffler")
     }), k2.dependsOn(k1) { k1 =>
@@ -72,17 +72,17 @@ class LogicTest extends TestKit(ActorSystem("NifflerTest")) with FlatSpecLike wi
     val nifflerEx = intercept[NifflerEvaluationException] {
       logic.syncRun(k3)
     }
-    nifflerEx.snapshot.keyToEvaluate shouldBe k3
-    nifflerEx.keyWithException shouldBe k1
+    nifflerEx.snapshot.tokenToEvaluate shouldBe k3
+    nifflerEx.tokenWithException shouldBe k1
     nifflerEx.exception.getMessage shouldBe "hello niffler"
     nifflerEx.getPaths.length shouldBe 1
     nifflerEx.getPaths.head.getVertexList.toArray shouldBe Array(k1, k2, k3)
   }
 
   it should "report timeout exception" in {
-    val k1 = Key[Int]("k1")
-    val k2 = Key[Int]("k2")
-    val k3 = Key[Int]("k3")
+    val k1 = Token[Int]("k1")
+    val k2 = Token[Int]("k2")
+    val k3 = Token[Int]("k3")
     val logic = Logic(Seq(k1.assign(1), k2.dependsOn(k1) { k1 =>
       Thread.sleep(200)
       k1 + 1
@@ -93,9 +93,9 @@ class LogicTest extends TestKit(ActorSystem("NifflerTest")) with FlatSpecLike wi
     val nifflerEx = intercept[NifflerTimeoutException] {
       logic.syncRun(k3, timeout = Duration(100, TimeUnit.MILLISECONDS))
     }
-    nifflerEx.executionSnapshot.keyToEvaluate shouldBe k3
-    nifflerEx.executionSnapshot.ongoing.keys should contain only k2
-    nifflerEx.executionSnapshot.cache.keys should contain only k1
+    nifflerEx.executionSnapshot.tokenToEvaluate shouldBe k3
+    nifflerEx.executionSnapshot.ongoing.keySet should contain only k2
+    nifflerEx.executionSnapshot.cache.tokens should contain only k1
     nifflerEx.timeout.length shouldBe 100
   }
 }

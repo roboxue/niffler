@@ -12,13 +12,13 @@ import scala.language.existentials
   * @since 12/19/17.
   */
 case class NifflerEvaluationException(snapshot: ExecutionSnapshot,
-                                      keyWithException: Key[_],
-                                      stats: KeyEvaluationStats,
+                                      tokenWithException: Token[_],
+                                      stats: TokenEvaluationStats,
                                       exception: Throwable)
     extends Exception {
-  def getPaths: Seq[GraphPath[Key[_], DefaultEdge]] = {
+  def getPaths: Seq[GraphPath[Token[_], DefaultEdge]] = {
     new AllDirectedPaths(snapshot.logic.topology)
-      .getAllPaths(keyWithException, snapshot.keyToEvaluate, true, null)
+      .getAllPaths(tokenWithException, snapshot.tokenToEvaluate, true, null)
       .toSeq
   }
 }

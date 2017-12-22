@@ -2,7 +2,7 @@ package com.roboxue.niffler
 
 import java.util.concurrent.{TimeUnit, TimeoutException}
 
-import akka.actor.{ActorRef, ActorSystem, PoisonPill, Props}
+import akka.actor.{ActorRef, ActorSystem, PoisonPill}
 import akka.util.Timeout
 
 import scala.concurrent.duration.{Duration, FiniteDuration}
@@ -26,8 +26,8 @@ object AsyncExecution {
     actorSystem.get
   }
 
-  def apply[T](logic: Logic, key: Key[T], cache: ExecutionCache): AsyncExecution[T] = {
-    new AsyncExecution[T](logic, cache, key, getActorSystem).trigger()
+  def apply[T](logic: Logic, token: Token[T], cache: ExecutionCache): AsyncExecution[T] = {
+    new AsyncExecution[T](logic, cache, token, getActorSystem).trigger()
   }
 }
 
@@ -35,10 +35,10 @@ object AsyncExecution {
   * Use companion object to create an instance
   * This class wraps all immutable information about
   */
-class AsyncExecution[T] private (logic: Logic, initialCache: ExecutionCache, forKey: Key[T], system: ActorSystem) {
+class AsyncExecution[T] private (logic: Logic, initialCache: ExecutionCache, forToken: Token[T], system: ActorSystem) {
   private val promise: Promise[ExecutionResult[T]] = Promise()
   private lazy val executionActor: ActorRef =
-    system.actorOf(Props(new ExecutionActor[T](promise, logic, initialCache, forKey)))
+    system.actorOf(ExecutionActor.props(promise, logic, initialCache, forToken))
 
   def future: Future[ExecutionResult[T]] = promise.future
 

@@ -6,17 +6,17 @@ import scala.collection.mutable
   * @author rxue
   * @since 12/15/17.
   */
-class MutableExecutionCache(initialState: Map[Key[_], ExecutionCacheEntry[_]]) {
+class MutableExecutionCache(initialState: Map[Token[_], ExecutionCacheEntry[_]]) {
   private val storage = mutable.Map(initialState.toSeq: _*)
 
-  def keys: Iterable[Key[_]] = storage.keys
+  def tokens: Iterable[Token[_]] = storage.keys
 
-  private[niffler] def getStorage: Map[Key[_], ExecutionCacheEntry[_]] = storage.toMap
+  private[niffler] def getStorage: Map[Token[_], ExecutionCacheEntry[_]] = storage.toMap
 
-  def getValues: Map[Key[_], Any] = storage.mapValues(_.result).toMap
+  def getValues: Map[Token[_], Any] = storage.mapValues(_.result).toMap
 
-  def omit(keys: Set[Key[_]]): ExecutionCache = {
-    new ExecutionCache(getStorage.filterKeys(p => !keys.contains(p)))
+  def omit(tokens: Set[Token[_]]): ExecutionCache = {
+    new ExecutionCache(getStorage.filterKeys(p => !tokens.contains(p)))
   }
 
   def invalidateTtlCache(now: Long): Unit = {
@@ -26,43 +26,23 @@ class MutableExecutionCache(initialState: Map[Key[_], ExecutionCacheEntry[_]]) {
     })
   }
 
-  def hit(key: Key[_]): Boolean = {
-    storage.contains(key)
-  }
-
-  def miss(key: Key[_]): Boolean = {
-    !hit(key)
-  }
-
-  def apply[T](key: Key[T]): T = {
-    storage(key).result.asInstanceOf[T]
-  }
-
-  def get[T](key: Key[T]): Option[T] = {
-    storage.get(key).map(_.result.asInstanceOf[T])
-  }
-
-  def getOrElse[T](key: Key[T], default: => T): T = {
-    storage.get(key).map(_.result.asInstanceOf[T]).getOrElse(default)
-  }
-
   def fork: ExecutionCache = {
     ExecutionCache(getStorage)
   }
 
-  def store[T](key: Key[T], value: T, stats: KeyEvaluationStats, ttl: Option[Long]): Unit = {
-    storage(key) = ExecutionCacheEntry(value, stats, ttl)
+  def store[T](token: Token[T], value: T, stats: TokenEvaluationStats, ttl: Option[Long]): Unit = {
+    storage(token) = ExecutionCacheEntry(value, stats, ttl)
   }
 
-  def evict[T](key: Key[T]): Unit = {
-    storage.remove(key)
+  def evict[T](token: Token[T]): Unit = {
+    storage.remove(token)
   }
 }
 
-case class ExecutionCache(storage: Map[Key[_], ExecutionCacheEntry[_]]) {
-  def keys: Iterable[Key[_]] = storage.keys
+case class ExecutionCache(storage: Map[Token[_], ExecutionCacheEntry[_]]) {
+  def tokens: Iterable[Token[_]] = storage.keys
 
-  def getValues: Map[Key[_], Any] = storage.mapValues(_.result)
+  def getValues: Map[Token[_], Any] = storage.mapValues(_.result)
 
   def merge(that: ExecutionCache): ExecutionCache = {
     ExecutionCache(storage ++ that.storage)
@@ -72,24 +52,24 @@ case class ExecutionCache(storage: Map[Key[_], ExecutionCacheEntry[_]]) {
     new MutableExecutionCache(storage)
   }
 
-  def hit(key: Key[_]): Boolean = {
-    storage.contains(key)
+  def hit(token: Token[_]): Boolean = {
+    storage.contains(token)
   }
 
-  def miss(key: Key[_]): Boolean = {
-    !hit(key)
+  def miss(token: Token[_]): Boolean = {
+    !hit(token)
   }
 
-  def apply[T](key: Key[T]): T = {
-    storage(key).result.asInstanceOf[T]
+  def apply[T](token: Token[T]): T = {
+    storage(token).result.asInstanceOf[T]
   }
 
-  def get[T](key: Key[T]): Option[T] = {
-    storage.get(key).map(_.result.asInstanceOf[T])
+  def get[T](token: Token[T]): Option[T] = {
+    storage.get(token).map(_.result.asInstanceOf[T])
   }
 
-  def getOrElse[T](key: Key[T], default: => T): T = {
-    storage.get(key).map(_.result.asInstanceOf[T]).getOrElse(default)
+  def getOrElse[T](token: Token[T], default: => T): T = {
+    storage.get(token).map(_.result.asInstanceOf[T]).getOrElse(default)
   }
 }
 

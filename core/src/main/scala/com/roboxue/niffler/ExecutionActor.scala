@@ -15,25 +15,20 @@ import scala.util.{Failure, Success}
 class ExecutionActor[T](promise: Promise[ExecutionResult[T]],
                         logic: Logic,
                         initialCache: ExecutionCache,
-                        forKey: Key[T],
-                        clock: Clock = Clock.systemUTC())
+                        forToken: Token[T],
+                        clock: Clock)
     extends Actor {
   val mutableCache: MutableExecutionCache = initialCache.mutableFork
-  val executionStartTime: mutable.Map[Key[_], Long] = mutable.Map.empty
+  val executionStartTime: mutable.Map[Token[_], Long] = mutable.Map.empty
   var invokeTime: Long = 0L
   var cancelled: Boolean = false
-  var unmetDependencies: Set[Key[_]] = Set.empty
+  var unmetDependencies: Set[Token[_]] = Set.empty
 
-  def triggerEval(key: Key[_]): Unit = {
-    executionStartTime(key) = clock.millis()
-    context.actorOf(
-      Props(
-        new KeyEvaluationActor[key.R0](
-          key.asInstanceOf[Key[key.R0]],
-          logic.implForKey(key).asInstanceOf[ImplementationDetails[key.R0]]
-        )
-      )
-    ) ! KeyEvaluationActor.Evaluate(mutableCache.fork)
+  def triggerEval(token: Token[_]): Unit = {
+    executionStartTime(token) = clock.millis()
+    val typedToken: Token[token.R0] = token.asInstanceOf[Token[token.R0]]
+    context.actorOf(TokenEvaluationActor.props(typedToken, logic.implForToken(typedToken))) ! TokenEvaluationActor
+      .Evaluate(mutableCache.fork)
   }
 
   override def receive: Receive = {
@@ -43,40 +38,41 @@ class ExecutionActor[T](promise: Promise[ExecutionResult[T]],
     case ExecutionActor.Invoke =>
       if (!cancelled) {
         invokeTime = clock.millis()
+        mutableCache.invalidateTtlCache(invokeTime)
         val ec = mutableCache.fork
         // Check TTL during invoke, invalidate
-        unmetDependencies = logic.getUnmetDependencies(forKey, ec)
+        unmetDependencies = logic.getUnmetDependencies(forToken, ec)
         if (unmetDependencies.isEmpty) {
-          promise.trySuccess(ExecutionResult(ec(forKey), logic, ec))
+          promise.trySuccess(ExecutionResult(ec(forToken), logic, ec))
         } else {
           for (k <- unmetDependencies if logic.allDependenciesMet(k, ec)) {
             triggerEval(k)
           }
         }
       }
-    case KeyEvaluationActor.EvaluateComplete(key, tryResult) =>
+    case TokenEvaluationActor.EvaluateComplete(token, tryResult) =>
       if (!cancelled) {
-        val stats = KeyEvaluationStats(executionStartTime(key), clock.millis())
+        val stats = TokenEvaluationStats(executionStartTime(token), clock.millis())
         tryResult match {
           case Failure(ex) =>
-            promise.tryFailure(NifflerEvaluationException(getExecutionSnapshot, key, stats, ex))
+            promise.tryFailure(NifflerEvaluationException(getExecutionSnapshot, token, stats, ex))
           case Success(result) =>
-            logic.cachingPolicy(key) match {
+            logic.cachingPolicy(token) match {
               case CachingPolicy.WithinExecution | CachingPolicy.Forever =>
-                mutableCache.store(key, result, stats, None)
+                mutableCache.store(token, result, stats, None)
               case CachingPolicy.Timed(ttl) =>
-                mutableCache.store(key, result, stats, Some(ttl.length))
+                mutableCache.store(token, result, stats, Some(ttl.length))
               case CachingPolicy.Never =>
               // pass
             }
-            if (key == forKey) {
-              val keysCachedOnlyWithinExecution =
-                logic.keys.filter(k => logic.cachingPolicy(k) == CachingPolicy.WithinExecution)
-              val cacheAfterExecution = mutableCache.omit(keysCachedOnlyWithinExecution)
+            if (token == forToken) {
+              val tokensCachedOnlyWithinExecution =
+                logic.tokensInvolved.filter(k => logic.cachingPolicy(k) == CachingPolicy.WithinExecution)
+              val cacheAfterExecution = mutableCache.omit(tokensCachedOnlyWithinExecution)
               promise.trySuccess(ExecutionResult(result.asInstanceOf[T], logic, cacheAfterExecution))
             } else {
               val ec = mutableCache.fork
-              for (k <- logic.getParents(key).intersect(unmetDependencies) if logic.allDependenciesMet(k, ec)) {
+              for (k <- logic.getParents(token).intersect(unmetDependencies) if logic.allDependenciesMet(k, ec)) {
                 triggerEval(k)
               }
             }
@@ -86,7 +82,7 @@ class ExecutionActor[T](promise: Promise[ExecutionResult[T]],
 
   def getExecutionSnapshot: ExecutionSnapshot = {
     val ec = mutableCache.fork
-    ExecutionSnapshot(logic, forKey, ec, executionStartTime.toMap -- ec.keys, invokeTime)
+    ExecutionSnapshot(logic, forToken, ec, executionStartTime.toMap -- ec.tokens, invokeTime, clock.millis())
   }
 }
 
@@ -94,5 +90,13 @@ object ExecutionActor {
 
   case object Invoke
   case object Cancel
+
+  def props[T](promise: Promise[ExecutionResult[T]],
+               logic: Logic,
+               initialCache: ExecutionCache,
+               forToken: Token[T],
+               clock: Clock = Clock.systemUTC()): Props = {
+    Props(new ExecutionActor[T](promise, logic, initialCache, forToken, clock))
+  }
 
 }
