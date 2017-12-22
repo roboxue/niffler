@@ -1,12 +1,13 @@
 package com.roboxue.niffler
 
 import java.util.UUID
+import scala.reflect.runtime.universe.TypeTag
 
 /**
   * @author rxue
   * @since 12/15/17.
   */
-case class Token[R](name: String, uuid: String = UUID.randomUUID().toString)
+case class Token[R: TypeTag](name: String, uuid: String = UUID.randomUUID().toString)
     extends Token.AggregateOps[R]
     with Token.AssignOps[R]
     with Token.DependsOnOps[R] {
@@ -16,7 +17,14 @@ case class Token[R](name: String, uuid: String = UUID.randomUUID().toString)
     */
   type R0 = R
 
-  def debugString: String = s"$name[$uuid]"
+  lazy val returnTypeDescription: String = {
+    import scala.reflect.runtime.universe._
+    typeOf[R].toString
+  }
+
+  override def toString: String = s"$name[$returnTypeDescription]"
+
+  def debugString: String = s"$name[$returnTypeDescription]($uuid)"
 
   override def canEqual(that: Any): Boolean = {
     that.isInstanceOf[Token[R]]
