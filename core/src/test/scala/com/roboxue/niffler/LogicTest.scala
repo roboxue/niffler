@@ -24,11 +24,11 @@ class LogicTest extends TestKit(ActorSystem("NifflerTest")) with FlatSpecLike wi
     val k5 = Token[Int]("k5")
     val logic = Logic(Seq(k5.dependsOn(k4) { (k4: Int) =>
       k4 + 5
-    }, k4.assign(4), k3.dependsOn(k4) { k4 =>
+    }, k4.assign(4), k3.dependsOn(k4) { k4: Int =>
       k4 + 3
-    }, k2.dependsOn(k4) { k4 =>
+    }, k2.dependsOn(k4) { k4: Int =>
       k4 + 2
-    }, k1.dependsOn(k2, k3) { (k2, k3) =>
+    }, k1.dependsOn(k2, k3) { (k2: Int, k3: Int) =>
       k2 + k3 + 1
     }))
 
@@ -43,13 +43,13 @@ class LogicTest extends TestKit(ActorSystem("NifflerTest")) with FlatSpecLike wi
     val k3 = Token[Int]("k3")
     val k4 = Token[Int]("k4")
     val k5 = Token[Int]("k5")
-    val logic = Logic(Seq(k1.assign(1), k2.assign(2), k3.dependsOn(k1) { (v1) =>
+    val logic = Logic(Seq(k1.assign(1), k2.assign(2), k3.dependsOn(k1) { (v1: Int) =>
       v1 + 2
-    }, k4.dependsOn(k2) { (v2) =>
+    }, k4.dependsOn(k2) { (v2: Int) =>
       v2 + 2
-    }, k5.assign(0), k5.aggregateWith(k3, k1) { (v5, v3, v1) =>
+    }, k5.assign(0), k5.amend(k3, k1) { (v5: Int, v3: Int, v1: Int) =>
       v5 + v3 + v1
-    }, k5.aggregateWith(k4) { (v5, v4) =>
+    }, k5.amend(k4) { (v5: Int, v4: Int) =>
       v5 + v4
     }))
 
@@ -64,9 +64,9 @@ class LogicTest extends TestKit(ActorSystem("NifflerTest")) with FlatSpecLike wi
     val k3 = Token[Int]("k3")
     val logic = Logic(Seq(k1.assign({
       throw new Exception("hello niffler")
-    }), k2.dependsOn(k1) { k1 =>
+    }), k2.dependsOn(k1) { (k1: Int) =>
       k1 + 1
-    }, k3.dependsOn(k2) { (k2) =>
+    }, k3.dependsOn(k2) { (k2: Int) =>
       k2 + 1
     }))
 
@@ -84,10 +84,10 @@ class LogicTest extends TestKit(ActorSystem("NifflerTest")) with FlatSpecLike wi
     val k1 = Token[Int]("k1")
     val k2 = Token[Int]("k2")
     val k3 = Token[Int]("k3")
-    val logic = Logic(Seq(k1.assign(1), k2.dependsOn(k1) { k1 =>
+    val logic = Logic(Seq(k1.assign(1), k2.dependsOn(k1) { (k1: Int) =>
       Thread.sleep(200)
       k1 + 1
-    }, k3.dependsOn(k2) { (k2) =>
+    }, k3.dependsOn(k2) { (k2: Int) =>
       k2 + 1
     }))
 
