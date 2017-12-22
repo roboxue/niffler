@@ -24,7 +24,7 @@ class MutableExecutionCache(initialState: Map[Token[_], ExecutionCacheEntry[_]])
   def invalidateTtlCache(now: Long): Unit = {
     storage.retain({
       case (_, value) =>
-        value.ttl.isEmpty || now > value.stats.completeTime + value.ttl.get
+        value.ttl.isEmpty || now < value.stats.completeTime + value.ttl.get
     })
   }
 

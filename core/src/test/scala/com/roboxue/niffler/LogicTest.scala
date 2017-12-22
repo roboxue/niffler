@@ -3,8 +3,8 @@ package com.roboxue.niffler
 import java.util.concurrent.TimeUnit
 
 import akka.actor.ActorSystem
-import akka.testkit.TestKit
-import com.roboxue.niffler.execution.{NifflerEvaluationException, NifflerTimeoutException}
+import akka.testkit.{DefaultTimeout, TestKit}
+import com.roboxue.niffler.execution.{CachingPolicy, NifflerEvaluationException, NifflerTimeoutException}
 import org.scalatest.{FlatSpecLike, Matchers}
 
 import scala.concurrent.duration.Duration
@@ -13,7 +13,7 @@ import scala.concurrent.duration.Duration
   * @author rxue
   * @since 12/18/17.
   */
-class LogicTest extends TestKit(ActorSystem("NifflerTest")) with FlatSpecLike with Matchers {
+class LogicTest extends TestKit(ActorSystem("NifflerTest")) with FlatSpecLike with Matchers with DefaultTimeout {
   AsyncExecution.setActorSystem(system)
 
   it should "run" in {
@@ -32,9 +32,9 @@ class LogicTest extends TestKit(ActorSystem("NifflerTest")) with FlatSpecLike wi
       k2 + k3 + 1
     }))
 
-    val ExecutionResult(result, _, cache) = logic.syncRun(k1)
+    val ExecutionResult(result, snapshot, newCache) = logic.syncRun(k1, timeout = timeout.duration)
     result shouldBe 14
-    cache.getValues shouldBe Map(k1 -> 14, k2 -> 6, k3 -> 7, k4 -> 4)
+    newCache.getValues shouldBe Map(k1 -> 14, k2 -> 6, k3 -> 7, k4 -> 4)
   }
 
   it should "aggregate" in {
@@ -53,9 +53,42 @@ class LogicTest extends TestKit(ActorSystem("NifflerTest")) with FlatSpecLike wi
       v5 + v4
     }))
 
-    val ExecutionResult(result, _, cache) = logic.syncRun(k5)
+    val ExecutionResult(result, snapshot, newCache) = logic.syncRun(k5, timeout = timeout.duration)
     result shouldBe 8 // 0 + 3 + 4 + 1
-    cache.getValues shouldBe Map(k1 -> 1, k2 -> 2, k3 -> 3, k4 -> 4, k5 -> 8)
+    newCache.getValues shouldBe Map(k1 -> 1, k2 -> 2, k3 -> 3, k4 -> 4, k5 -> 8)
+  }
+
+  it should "discard non cached value" in {
+    val k1 = Token[Int]("k1")
+    val k2 = Token[Int]("k2")
+    val k3 = Token[Int]("k3")
+    val k4 = Token[Int]("k4")
+    val k5 = Token[Int]("k5")
+    val logic = Logic(
+      Seq(
+        k5.dependsOn(k4) { (k4: Int) =>
+          k4 + 5
+        },
+        k4.assign(4),
+        k3.dependsOn(k4) { k4: Int =>
+          k4 + 3
+        },
+        k2.dependsOn(k4) { k4: Int =>
+          k4 + 2
+        },
+        k1.dependsOn(k2, k3) { (k2: Int, k3: Int) =>
+          // make sure k2's cache will always expire after this round of execution
+          Thread.sleep(30)
+          k2 + k3 + 1
+        }
+      ),
+      Map(k1 -> CachingPolicy.WithinExecution, k2 -> CachingPolicy.Timed(Duration(1, TimeUnit.MILLISECONDS)))
+    )
+
+    val ExecutionResult(result, snapshot, newCache) = logic.syncRun(k1, timeout = timeout.duration)
+    result shouldBe 14
+    newCache.getValues shouldBe Map(k3 -> 7, k4 -> 4)
+    snapshot.cache.getValues shouldBe Map(k1 -> 14, k2 -> 6, k3 -> 7, k4 -> 4)
   }
 
   it should "report runtime exception" in {
