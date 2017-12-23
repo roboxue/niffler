@@ -4,7 +4,7 @@ import java.util.concurrent.TimeUnit
 
 import akka.actor.ActorSystem
 import akka.testkit.{DefaultTimeout, TestKit}
-import com.roboxue.niffler.execution.{CachingPolicy, NifflerEvaluationException, NifflerTimeoutException}
+import com.roboxue.niffler.execution._
 import org.scalatest.{FlatSpecLike, Matchers}
 
 import scala.concurrent.duration.Duration
@@ -16,7 +16,7 @@ import scala.concurrent.duration.Duration
 class LogicTest extends TestKit(ActorSystem("NifflerTest")) with FlatSpecLike with Matchers with DefaultTimeout {
   AsyncExecution.setActorSystem(system)
 
-  it should "run" in {
+  it should "run with dependsOn" in {
     val k1 = Token[Int]("k1")
     val k2 = Token[Int]("k2")
     val k3 = Token[Int]("k3")
@@ -37,25 +37,34 @@ class LogicTest extends TestKit(ActorSystem("NifflerTest")) with FlatSpecLike wi
     newCache.getValues shouldBe Map(k1 -> 14, k2 -> 6, k3 -> 7, k4 -> 4)
   }
 
-  it should "aggregate" in {
-    val k1 = Token[Int]("k1")
-    val k2 = Token[Int]("k2")
-    val k3 = Token[Int]("k3")
-    val k4 = Token[Int]("k4")
-    val k5 = Token[Int]("k5")
-    val logic = Logic(Seq(k1.assign(1), k2.assign(2), k3.dependsOn(k1) { (v1: Int) =>
-      v1 + 2
-    }, k4.dependsOn(k2) { (v2: Int) =>
-      v2 + 2
-    }, k5.assign(0), k5.amend(k3, k1) { (v5: Int, v3: Int, v1: Int) =>
-      v5 + v3 + v1
-    }, k5.amend(k4) { (v5: Int, v4: Int) =>
-      v5 + v4
-    }))
-
-    val ExecutionResult(result, snapshot, newCache) = logic.syncRun(k5, timeout = timeout.duration)
-    result shouldBe 8 // 0 + 3 + 4 + 1
-    newCache.getValues shouldBe Map(k1 -> 1, k2 -> 2, k3 -> 3, k4 -> 4, k5 -> 8)
+  it should "run with amend" in {
+    val t1: Token[String] = Token("a string")
+    val t2: Token[Int] = Token("an int")
+    val t3: Token[Int] = Token("another int")
+    val t3Impl: Implementation[Int] = t3.dependsOn(t1) { (v1: String) =>
+      v1.length
+    }
+    val t3Amend: Implementation[Int] = t3.amendWith(t2) { (v3: Int, v2: Int) =>
+      v3 + v2
+    }
+    val logic1: Logic = Logic(Seq(t1.assign("hello"), t2.assign(3), t3Impl, t3Amend))
+    logic1.syncRun(t3) match {
+      case ExecutionResult(result, _, cache) =>
+        result shouldBe 8
+        cache.getValues shouldBe Map(t1 -> "hello", t2 -> 3, t3 -> 8)
+    }
+    val logic2: Logic = Logic(Seq(t3Impl, t3Amend))
+    logic2.syncRun(t3, ExecutionCache.fromValue(Map(t1 -> "wow", t2 -> 6))) match {
+      case ExecutionResult(result, _, cache) =>
+        result shouldBe 9
+        cache.getValues shouldBe Map(t1 -> "wow", t2 -> 6, t3 -> 9)
+    }
+    val logic3: Logic = Logic(Seq(t3Amend))
+    logic3.syncRun(t3, ExecutionCache.fromValue(Map(t1 -> "wow", t2 -> 6, t3 -> 42))) match {
+      case ExecutionResult(result, _, cache) =>
+        result shouldBe 48
+        cache.getValues shouldBe Map(t1 -> "wow", t2 -> 6, t3 -> 48)
+    }
   }
 
   it should "discard non cached value" in {
@@ -111,6 +120,47 @@ class LogicTest extends TestKit(ActorSystem("NifflerTest")) with FlatSpecLike wi
     nifflerEx.exception.getMessage shouldBe "hello niffler"
     nifflerEx.getPaths.length shouldBe 1
     nifflerEx.getPaths.head.getVertexList.toArray shouldBe Array(k1, k2, k3)
+  }
+
+  it should "run with amends only for a key and existing cache entry" in {
+    val t2: Token[Int] = Token("an int")
+    val t3: Token[Int] = Token("another int")
+    val t3Amend1: Implementation[Int] = t3.amendWith(t2) { (v3: Int, v2: Int) =>
+      v3 + v2
+    }
+    val t3Amend2: Implementation[Int] = t3.amend(_ + 1)
+    val logic3: Logic = Logic(Seq(t3Amend1, t3Amend2, t2.assign(6)))
+    logic3
+      .syncRun(t3, ExecutionCache(Map(t3 -> ExecutionCacheEntry(42))), timeout = timeout.duration)
+      .result shouldBe 49
+  }
+
+  it should "fail with amends only for a key and no cache entry" in {
+    val t2: Token[Int] = Token("an int")
+    val t3: Token[Int] = Token("another int")
+    val t3Amend1: Implementation[Int] = t3.amendWith(t2) { (v3: Int, v2: Int) =>
+      v3 + v2
+    }
+    val t3Amend2: Implementation[Int] = t3.amend(_ + 1)
+    val logic3: Logic = Logic(Seq(t3Amend1, t3Amend2, t2.assign(6)))
+    val ex = intercept[NifflerInvocationException] {
+      logic3.syncRun(t3, timeout = timeout.duration)
+    }
+    ex.tokensMissingImpl should contain only t3
+  }
+
+  it should "fail with missing implementation" in {
+    val t1: Token[String] = Token("a string")
+    val t2: Token[Int] = Token("an int")
+    val t3: Token[Int] = Token("another int")
+    val t3Impl: Implementation[Int] = t3.dependsOn(t1, t2) { (t1: String, v2: Int) =>
+      t1.length + v2
+    }
+    val logic3: Logic = Logic(Seq(t3Impl))
+    val ex = intercept[NifflerInvocationException] {
+      logic3.syncRun(t3)
+    }
+    ex.tokensMissingImpl should contain only (t1, t2)
   }
 
   it should "report timeout exception" in {

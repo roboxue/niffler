@@ -42,7 +42,7 @@ class MutableExecutionCache(initialState: Map[Token[_], ExecutionCacheEntry[_]])
 }
 
 case class ExecutionCache(storage: Map[Token[_], ExecutionCacheEntry[_]]) {
-  def tokens: Iterable[Token[_]] = storage.keys
+  def tokens: Set[Token[_]] = storage.keySet
 
   def getValues: Map[Token[_], Any] = storage.mapValues(_.result)
 
@@ -77,4 +77,14 @@ case class ExecutionCache(storage: Map[Token[_], ExecutionCacheEntry[_]]) {
 
 object ExecutionCache {
   val empty: ExecutionCache = new ExecutionCache(Map.empty)
+
+  /**
+    * Creating an [[ExecutionCache]] manually is not type safe, thus this is marked as private and used only in tests
+    *
+    * @param map a typesafe map, so that every value conforms to the type parameter of the key token
+    * @return
+    */
+  private[niffler] def fromValue(map: Map[Token[_], Any]): ExecutionCache = {
+    ExecutionCache(map.mapValues(v => ExecutionCacheEntry(v)))
+  }
 }

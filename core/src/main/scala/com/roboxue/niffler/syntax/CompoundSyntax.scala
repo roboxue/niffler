@@ -33,8 +33,32 @@ trait CompoundSyntax[R] {
     * @tparam FunctionType implementation function's type
     * @tparam ValueList    auto calculated function's input type based on [[TokenList]]
     * @return Auto generated [[Implementation]]
+    *
+    * {code}
+    * val t1: Token[String] = Token("a string")
+    * val t2: Token[Int] = Token("an int")
+    * val t3: Token[Int] = Token("another int")
+    * val t3Impl: Implementation[Int] = t3.dependsOn(t1) {
+    *   (v1: String) =>
+    *     v1.length
+    * }
+    * val t3Amend: Implementation[Int] = t3.amendWith(t2) {
+    *   (v3: Int, v2: Int) =>
+    *     v3 + v2
+    * }
+    * val logic1: Logic = Logic(Seq(t1.assign("hello"), t2.assign(3), t3Impl, t3Amend))
+    * logic1.syncRun(t3).result shouldBe 8 // hello.length == 5, 5 + 3 == 8
+    * val logic2: Logic = Logic(Seq(t3Impl, t3.amend))
+    * logic2.syncRun(t3, ExecutionCache.fromValue(Map(t1 -> "wow", t2 -> 6))).result shouldBe 9 // wow.length == 3, 3 + 6 == 9
+    * val logic3: Logic = Logic(Seq(t3Amend))
+    * logic3.syncRun(t3, ExecutionCache.fromValue(Map(t1 -> "wow", t2 -> 6, t3 -> 42))).result shouldBe 48 // 42 + 6 == 48
+    * {code}
+    * when the resultImpl is added to a [[com.roboxue.niffler.Logic]] and evaluated with a [[ExecutionCache]]
+    * The code example above will use the runtime value of t1 and t2 (assign to v1 and v2 correspondingly),
+    * then execute the function body
+    *
     */
-  def amend[TokenTuple, TokenList <: HList, ValueList <: HList, FunctionType](dependencies: TokenTuple)(
+  def amendWith[TokenTuple, TokenList <: HList, ValueList <: HList, FunctionType](dependencies: TokenTuple)(
     implementation: FunctionType
   )(implicit dependenciesIsTokenList: Generic.Aux[TokenTuple, TokenList],
     tokenListIsListOfTokens: ToTraversable.Aux[TokenList, List, Token[_]],
@@ -76,11 +100,26 @@ trait CompoundSyntax[R] {
     * @tparam T the type for the t1
     * @return an [[Implementation]]
     */
-  def amend[T](t1: Token[T])(implementation: (R, T) => R): Implementation[R] = {
+  def amendWith[T](t1: Token[T])(implementation: (R, T) => R): Implementation[R] = {
     assert(t1 != thisToken, s"$thisToken cannot depend on itself using 'dependsOn'. use 'amend' instead")
     Implementation(thisToken, new IncrementalImplementation[R](Set(t1)) {
       override private[niffler] def forceEvaluate(cache: ExecutionCache, existingValue: R): R = {
         implementation(existingValue, cache(t1))
+      }
+    })
+  }
+
+  /**
+    * Simplest version of creating an [[Implementation]] that amend this token's existing value in cache during runtime
+    * and depends on only one other token
+    *
+    * @param implementation a function that takes [[R]] and returns [[R]]
+    * @return an [[Implementation]]
+    */
+  def amend(implementation: R => R): Implementation[R] = {
+    Implementation(thisToken, new IncrementalImplementation[R](Set.empty) {
+      override private[niffler] def forceEvaluate(cache: ExecutionCache, existingValue: R): R = {
+        implementation(existingValue)
       }
     })
   }

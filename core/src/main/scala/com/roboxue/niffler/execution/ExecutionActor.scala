@@ -40,18 +40,11 @@ class ExecutionActor[T](promise: Promise[ExecutionResult[T]],
       if (!cancelled) {
         invokeTime = clock.millis()
         mutableCache.invalidateTtlCache(invokeTime)
-        val ec = mutableCache.fork
+        val ec = mutableCache.omit(Set(forToken))
         // Check TTL during invoke, invalidate
         unmetDependencies = logic.getUnmetDependencies(forToken, ec)
         if (unmetDependencies.isEmpty) {
-          val now = clock.millis()
-          promise.trySuccess(
-            ExecutionResult(
-              ec(forToken),
-              ExecutionSnapshot(logic, forToken, ec, Map.empty, invokeTime, now),
-              cacheAfterExecution(now)
-            )
-          )
+          triggerEval(forToken)
         } else {
           for (k <- unmetDependencies if logic.allDependenciesMet(k, ec)) {
             triggerEval(k)
@@ -114,7 +107,7 @@ object ExecutionActor {
                logic: Logic,
                initialCache: ExecutionCache,
                forToken: Token[T],
-               clock: Clock = Clock.systemUTC()): Props = {
+               clock: Clock): Props = {
     Props(new ExecutionActor[T](promise, logic, initialCache, forToken, clock))
   }
 

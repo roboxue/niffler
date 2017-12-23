@@ -26,7 +26,7 @@ case class Token[R: TypeTag](name: String, uuid: String = UUID.randomUUID().toSt
 
   override def toString: String = s"$name[$returnTypeDescription]"
 
-  def debugString: String = s"$name[$returnTypeDescription]($uuid)"
+  def debugString: String = s"'$name'[$returnTypeDescription]($uuid)"
 
   override def canEqual(that: Any): Boolean = {
     that.isInstanceOf[Token[R]]

@@ -42,6 +42,24 @@ trait DependencySyntax[R] {
     * @tparam FunctionType implementation function's type
     * @tparam ValueList    auto calculated function's input type based on [[TokenList]]
     * @return Auto generated [[Implementation]]
+    *
+    * {code}
+    * val t1: Token[String] = Token("a string")
+    * val t2: Token[Int] = Token("an int")
+    * val t3: Token[Int] = Token("another int")
+    * val t3Impl: Implementation[Int] = t3.dependsOn(t1, t2) {
+    *   (v1: String, v2: Int) =>
+    *     v1.length + v2
+    * }
+    * val logic1: Logic = Logic(Seq(t1.assign("hello"), t2.assign(3), t3Impl))
+    * logic1.syncRun(t3).result shouldBe 8 // hello.length == 5, 5 + 3 == 8
+    * val logic2: Logic = Logic(Seq(t3Impl))
+    * logic2.syncRun(t3, ExecutionCache.fromValue(Map(t1 -> "wow", t2 -> 6))).result shouldBe 9 // wow.length == 3, 3 + 6 == 9
+    * {code}
+    * when the resultImpl is added to a [[com.roboxue.niffler.Logic]] and evaluated with a [[ExecutionCache]]
+    * The code example above will use the runtime value of t1 and t2 (assign to v1 and v2 correspondingly),
+    * then execute the function body
+    *
     */
   def dependsOn[TokenTuple, TokenList <: HList, ValueList <: HList, FunctionType](dependencies: TokenTuple)(
     implementation: FunctionType

@@ -1,15 +1,11 @@
 package com.roboxue.niffler
 
+import java.time.Clock
 import java.util.concurrent.{TimeUnit, TimeoutException}
 
 import akka.actor.{ActorRef, ActorSystem, PoisonPill}
 import akka.util.Timeout
-import com.roboxue.niffler.execution.{
-  ExecutionActor,
-  ExecutionSnapshot,
-  NifflerEvaluationException,
-  NifflerTimeoutException
-}
+import com.roboxue.niffler.execution._
 
 import scala.concurrent.duration.{Duration, FiniteDuration}
 import scala.concurrent.{Await, ExecutionContext, Future, Promise}
@@ -41,10 +37,14 @@ object AsyncExecution {
   * Use companion object to create an instance
   * This class wraps all immutable information about
   */
-class AsyncExecution[T] private (logic: Logic, initialCache: ExecutionCache, forToken: Token[T], system: ActorSystem) {
+class AsyncExecution[T] private (logic: Logic,
+                                 initialCache: ExecutionCache,
+                                 forToken: Token[T],
+                                 system: ActorSystem,
+                                 clock: Clock = Clock.systemUTC()) {
   private val promise: Promise[ExecutionResult[T]] = Promise()
   private lazy val executionActor: ActorRef =
-    system.actorOf(ExecutionActor.props(promise, logic, initialCache, forToken))
+    system.actorOf(ExecutionActor.props(promise, logic, initialCache, forToken, clock))
 
   def future: Future[ExecutionResult[T]] = promise.future
 
@@ -75,8 +75,16 @@ class AsyncExecution[T] private (logic: Logic, initialCache: ExecutionCache, for
   }
 
   private[niffler] def trigger(): AsyncExecution[T] = {
-    executionActor ! ExecutionActor.Invoke
-    promise.future.onComplete(_ => executionActor ! PoisonPill)(ExecutionContext.global)
+    val missingImpl = logic.checkMissingImpl(initialCache, forToken)
+    if (missingImpl.nonEmpty) {
+      val now = clock.millis()
+      promise.tryFailure(
+        NifflerInvocationException(ExecutionSnapshot(logic, forToken, initialCache, Map.empty, now, now), missingImpl)
+      )
+    } else {
+      executionActor ! ExecutionActor.Invoke
+      promise.future.onComplete(_ => executionActor ! PoisonPill)(ExecutionContext.global)
+    }
     this
   }
 }
