@@ -17,10 +17,12 @@ trait DependencySyntax[R] {
 
   /**
     * Special situation when this token is implemented without any dependencies
-    * @param value a lazy function knows how to calculate the value
+    *
+    * @param value           a lazy function knows how to calculate the value
+    * @param addToCollection if provided (provided automatically inside a [[Niffler]] trait), add the return value to it
     * @return an [[Implementation]]
     */
-  def assign(value: => R)(implicit addToCollection: ImplementationCollection = null): Implementation[R] = {
+  def assign(value: => R)(implicit addToCollection: Niffler = null): Implementation[R] = {
     val impl = new Implementing[() => R, R] {
       override protected type _TokenList = HNil
       override protected type _ValueList = HNil
@@ -47,22 +49,22 @@ trait DependencySyntax[R] {
     * @param dependencies a variable length of tokens
     * @return Auto generated [[Implementing]]
     *
-    * {code}
-    * val t1: Token[String] = Token("a string")
-    * val t2: Token[Int] = Token("an int")
-    * val t3: Token[Int] = Token("another int")
-    * val t3Impl: Implementation[Int] = t3.dependsOn(t1, t2) {
-    *   (v1: String, v2: Int) =>
-    *     v1.length + v2
-    * }
-    * val logic1: Logic = Logic(Seq(t1.assign("hello"), t2.assign(3), t3Impl))
-    * logic1.syncRun(t3).result shouldBe 8 // hello.length == 5, 5 + 3 == 8
-    * val logic2: Logic = Logic(Seq(t3Impl))
-    * logic2.syncRun(t3, ExecutionCache.fromValue(Map(t1 -> "wow", t2 -> 6))).result shouldBe 9 // wow.length == 3, 3 + 6 == 9
-    * {code}
-    * when the resultImpl is added to a [[com.roboxue.niffler.Logic]] and evaluated with a [[ExecutionCache]]
-    * The code example above will use the runtime value of t1 and t2 (assign to v1 and v2 correspondingly),
-    * then execute the function body
+    *         {code}
+    *         val t1: Token[String] = Token("a string")
+    *         val t2: Token[Int] = Token("an int")
+    *         val t3: Token[Int] = Token("another int")
+    *         val t3Impl: Implementation[Int] = t3.dependsOn(t1, t2) {
+    *         (v1: String, v2: Int) =>
+    *         v1.length + v2
+    *         }
+    *         val logic1: Logic = Logic(Seq(t1.assign("hello"), t2.assign(3), t3Impl))
+    *         logic1.syncRun(t3).result shouldBe 8 // hello.length == 5, 5 + 3 == 8
+    *         val logic2: Logic = Logic(Seq(t3Impl))
+    *         logic2.syncRun(t3, ExecutionCache.fromValue(Map(t1 -> "wow", t2 -> 6))).result shouldBe 9 // wow.length == 3, 3 + 6 == 9
+    *         {code}
+    *         when the resultImpl is added to a [[com.roboxue.niffler.Logic]] and evaluated with a [[ExecutionCache]]
+    *         The code example above will use the runtime value of t1 and t2 (assign to v1 and v2 correspondingly),
+    *         then execute the function body
     *
     */
   def dependsOn[TokenTuple <: Product, TokenList <: HList, ValueList <: HList, FunctionType](dependencies: TokenTuple)(
@@ -132,14 +134,12 @@ sealed trait Implementing[FunctionType, R] {
   /**
     * Complete the amending process with an implementation function
     *
-    * @param function  a function that take [[R]] and the same length of parameters
+    * @param function        a function that take [[R]] and the same length of parameters
     *                        as dependencies and returns [[R]]
     * @param addToCollection if provided (provided automatically inside a [[Niffler]] trait), add the return value to it
     * @return
     */
-  def usingFunction(
-    function: FunctionType
-  )(implicit addToCollection: ImplementationCollection = null): Implementation[R] = {
+  def usingFunction(function: FunctionType)(implicit addToCollection: Niffler = null): Implementation[R] = {
     // convert token hlist to token set using shapeless evidences
     val tokenSet: Set[Token[_]] = _tokenListIsListOfTokens(_dependingTokenHList).toSet
     // create concrete implementation

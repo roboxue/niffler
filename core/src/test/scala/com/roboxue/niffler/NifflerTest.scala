@@ -1,0 +1,27 @@
+package com.roboxue.niffler
+
+import org.scalatest.{FlatSpec, Matchers}
+
+/**
+  * @author rxue
+  * @since 12/24/17.
+  */
+class NifflerTest extends FlatSpec with Matchers {
+  it should "add impl properly" in {
+    trait Test1 extends Niffler {
+      val token1: Token[Int] = Token[Int]("t1")
+      val token2: Token[Int] = Token[Int]("t2")
+      def getToken2Impl: Implementation[Int]
+      getToken2Impl
+    }
+    object Test2 extends Test1 {
+      override def getToken2Impl: Implementation[Int] = {
+        token2.dependsOn(token1) usingFunction (_ + 3)
+      }
+
+    }
+    val logic = Test2.getLogic
+    logic.tokensInvolved shouldBe Set(Test2.token1, Test2.token2)
+    logic.checkMissingImpl(ExecutionCache.empty, Test2.token2) shouldBe Set(Test2.token1)
+  }
+}

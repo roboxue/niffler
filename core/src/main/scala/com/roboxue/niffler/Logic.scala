@@ -110,7 +110,7 @@ object Logic {
     * @throws NoSuchElementException   if an implementation is missing
     * @return
     */
-  def apply(binding: Seq[Implementation[_]], cachingPolicies: Map[Token[_], CachingPolicy] = Map.empty): Logic = {
+  def apply(binding: Iterable[Implementation[_]], cachingPolicies: Map[Token[_], CachingPolicy] = Map.empty): Logic = {
     val finalBindingMap: mutable.Map[Token[_], DirectImplementation[_]] = mutable.Map.empty
     val missingInitialImpl: mutable.Set[Token[_]] = mutable.Set.empty
     for (Implementation(token, impl) <- binding) {

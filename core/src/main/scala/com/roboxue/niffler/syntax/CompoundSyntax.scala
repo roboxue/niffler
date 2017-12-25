@@ -112,10 +112,11 @@ trait CompoundSyntax[R] {
     * Simplest version of creating an [[Implementation]] that amend this token's existing value in cache during runtime
     * and depends on only one other token
     *
-    * @param function a function that takes (existingValue:[[R]]) and returns the amended value (returns [[R]])
+    * @param function        a function that takes (existingValue:[[R]]) and returns the amended value (returns [[R]])
+    * @param addToCollection if provided (provided automatically inside a [[Niffler]] trait), add the return value to it
     * @return Auto generated [[Amending]] calling for a concrete function
     */
-  def amendWith(function: R => R)(implicit addToCollection: ImplementationCollection = null): Implementation[R] = {
+  def amendWith(function: R => R)(implicit addToCollection: Niffler = null): Implementation[R] = {
     val impl = Implementation(thisToken, new IncrementalImplementation[R](Set.empty) {
       override private[niffler] def forceEvaluate(cache: ExecutionCache, existingValue: R): R = {
         function(existingValue)
@@ -150,9 +151,7 @@ sealed trait Amending[FunctionType, R] {
     * @param addToCollection if provided (provided automatically inside a [[Niffler]] trait), add the return value to it
     * @return
     */
-  def usingFunction(
-    function: FunctionType
-  )(implicit addToCollection: ImplementationCollection = null): Implementation[R] = {
+  def usingFunction(function: FunctionType)(implicit addToCollection: Niffler = null): Implementation[R] = {
     // convert token hlist to token set using shapeless evidences
     val tokenSet: Set[Token[_]] = _tokenListIsListOfTokens(_dependingTokenHList).toSet
     // create concrete implementation
