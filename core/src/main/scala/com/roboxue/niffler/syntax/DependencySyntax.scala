@@ -1,13 +1,14 @@
 package com.roboxue.niffler.syntax
 
+import com.roboxue.niffler._
 import com.roboxue.niffler.execution.CacheFetcher
-import com.roboxue.niffler.{DirectImplementation, ExecutionCache, Implementation, Token}
 import shapeless._
 import shapeless.ops.function.FnToProduct
 import shapeless.ops.hlist.{Mapper, ToTraversable}
 
 /**
   * provide syntax similar to =
+  *
   * @author rxue
   * @since 12/22/17.
   */
@@ -15,33 +16,36 @@ trait DependencySyntax[R] {
   thisToken: Token[R] =>
 
   /**
-    *
-    * @param value
-    * @return
+    * Special situation when this token is implemented without any dependencies
+    * @param value a lazy function knows how to calculate the value
+    * @return an [[Implementation]]
     */
-  def assign(value: => R): Implementation[R] =
-    Implementation(thisToken, new DirectImplementation[R](Set.empty) {
-      override private[niffler] def forceEvaluate(cache: ExecutionCache): R = value
-    })
+  def assign(value: => R)(implicit addToCollection: ImplementationCollection = null): Implementation[R] = {
+    val impl = new Implementing[() => R, R] {
+      override protected type _TokenList = HNil
+      override protected type _ValueList = HNil
+      override protected val _tokenListIsListOfTokens: ToTraversable.Aux[_TokenList, List, Token[_]] =
+        implicitly[ToTraversable.Aux[_TokenList, List, Token[_]]]
+      override protected val _tokenListCanYieldVarTypeList: Mapper.Aux[CacheFetcher.type, _TokenList, _ValueList] =
+        implicitly
+      override protected val _implementationTakesVarListAndReturnsR: FnToProduct.Aux[() => R, HNil => R] =
+        implicitly
+      override protected val _tokenAmended: Token[R] = thisToken
+      override protected val _dependingTokenHList: _TokenList = HNil
+    }.usingFunction(() => value)
+    Option(addToCollection).foreach(c => c.addImpl(impl))
+    impl
+  }
 
   /**
-    * Create an [[Implementation]] by declaring dependencies and providing a function to calculate result
+    * Create an [[Implementing]] that will take a list of [[Token]] and calculate the function type needed
+    * by declaring dependencies and providing a function to calculate result
     *
-    * @param dependencies                          a variable length of tokens
-    * @param implementation                        a function that take the same length of parameters as dependencies
-    *                                              and returns [[R]]
-    * @param dependenciesIsTokenList               auto convert dependencies to a list of Tokens
-    * @param tokenListIsListOfTokens               code compiles only when every dependency is token
-    * @param tokenListCanYieldVarTypeList          auto convert dependencies to VarList
-    *                                              if dependencies is Tuple(Token[Int], Token[String], Token[Boolean],
-    *                                              then VarList will be List(Int, String, Boolean)
-    * @param implementationTakesVarListAndReturnsR code compiles only when implementation's conforms to VarList => R
-    *                                              with example above, function should be (Int, String, Boolean) => R
-    * @tparam TokenTuple   dependencies' type
-    * @tparam TokenList    auto calculated dependencies' type in List format
-    * @tparam FunctionType implementation function's type
-    * @tparam ValueList    auto calculated function's input type based on [[TokenList]]
-    * @return Auto generated [[Implementation]]
+    * DON'T PANIC, all type parameters are figured out automatically using shapeless, as long as the "dependencies" is
+    * a list of Token. That's why there is no doc strings for them
+    *
+    * @param dependencies a variable length of tokens
+    * @return Auto generated [[Implementing]]
     *
     * {code}
     * val t1: Token[String] = Token("a string")
@@ -61,50 +65,101 @@ trait DependencySyntax[R] {
     * then execute the function body
     *
     */
-  def dependsOn[TokenTuple, TokenList <: HList, ValueList <: HList, FunctionType](dependencies: TokenTuple)(
-    implementation: FunctionType
-  )(implicit dependenciesIsTokenList: Generic.Aux[TokenTuple, TokenList],
+  def dependsOn[TokenTuple <: Product, TokenList <: HList, ValueList <: HList, FunctionType](dependencies: TokenTuple)(
+    //---- the implicit values below is an automated process to calculate FunctionType based on TokenTuple
+    implicit dependenciesIsTokenList: Generic.Aux[TokenTuple, TokenList],
     tokenListIsListOfTokens: ToTraversable.Aux[TokenList, List, Token[_]],
     tokenListCanYieldVarTypeList: Mapper.Aux[CacheFetcher.type, TokenList, ValueList],
-    implementationTakesVarListAndReturnsR: FnToProduct.Aux[FunctionType, ValueList => R]): Implementation[R] = {
+    implementationTakesVarListAndReturnsR: FnToProduct.Aux[FunctionType, ValueList => R]
+    //---- if TokenTuple is (Token[A]), FunctionType will be calculated to (A) => R
+    //---- if TokenTuple is (Token[A], Token[B], Token[C]), FunctionType will be calculated to (A, B, C) => R
+  ): Implementing[FunctionType, R] = {
     // convert token tuple to token hlist using shapeless evidences
-    val dependencyHList: TokenList = dependenciesIsTokenList.to(dependencies)
+    val dependingTokenHList: TokenList = dependenciesIsTokenList.to(dependencies)
+    assert(
+      !tokenListIsListOfTokens(dependingTokenHList).contains(thisToken),
+      s"$thisToken cannot depend on itself using 'dependsOn'. use 'amend' instead"
+    )
+    new Implementing[FunctionType, R] {
+      override protected type _TokenList = TokenList
+      override protected type _ValueList = ValueList
+      override protected val _tokenListIsListOfTokens: ToTraversable.Aux[_TokenList, List, Token[_]] =
+        tokenListIsListOfTokens
+      override protected val _tokenListCanYieldVarTypeList: Mapper.Aux[CacheFetcher.type, _TokenList, _ValueList] =
+        tokenListCanYieldVarTypeList
+      override protected val _implementationTakesVarListAndReturnsR: FnToProduct.Aux[FunctionType, _ValueList => R] =
+        implementationTakesVarListAndReturnsR
+      override protected val _tokenAmended: Token[R] = thisToken
+      override protected val _dependingTokenHList: _TokenList = dependingTokenHList
+
+    }
+  }
+
+  /**
+    * Simplest version of creating an [[Implementing]] that depends on only one other token
+    *
+    * @param t1 other token that this token will depend on
+    * @tparam T the type for the t1
+    * @return an [[Implementing]]
+    */
+  def dependsOn[T](t1: Token[T]): Implementing[(T) => R, R] = {
+    assert(t1 != thisToken, s"$thisToken cannot depend on itself using 'dependsOn'. use 'amend' instead")
+    new Implementing[(T) => R, R] {
+      override protected type _TokenList = Token[T] :: HNil
+      override protected type _ValueList = T :: HNil
+      override protected val _tokenListIsListOfTokens: ToTraversable.Aux[_TokenList, List, Token[_]] =
+        implicitly[ToTraversable.Aux[_TokenList, List, Token[_]]]
+      override protected val _tokenListCanYieldVarTypeList: Mapper.Aux[CacheFetcher.type, _TokenList, _ValueList] =
+        implicitly[Mapper.Aux[CacheFetcher.type, _TokenList, _ValueList]]
+      override protected val _implementationTakesVarListAndReturnsR: FnToProduct.Aux[(T) => R, _ValueList => R] =
+        implicitly
+      override protected val _tokenAmended: Token[R] = thisToken
+      override protected val _dependingTokenHList: _TokenList = t1 :: HNil
+    }
+  }
+
+}
+
+sealed trait Implementing[FunctionType, R] {
+  protected type _TokenList <: HList
+  protected type _ValueList <: HList
+  protected val _tokenListIsListOfTokens: ToTraversable.Aux[_TokenList, List, Token[_]]
+  protected val _tokenListCanYieldVarTypeList: Mapper.Aux[CacheFetcher.type, _TokenList, _ValueList]
+  protected val _implementationTakesVarListAndReturnsR: FnToProduct.Aux[FunctionType, _ValueList => R]
+  protected val _tokenAmended: Token[R]
+  protected val _dependingTokenHList: _TokenList
+
+  /**
+    * Complete the amending process with an implementation function
+    *
+    * @param function  a function that take [[R]] and the same length of parameters
+    *                        as dependencies and returns [[R]]
+    * @param addToCollection if provided (provided automatically inside a [[Niffler]] trait), add the return value to it
+    * @return
+    */
+  def usingFunction(
+    function: FunctionType
+  )(implicit addToCollection: ImplementationCollection = null): Implementation[R] = {
     // convert token hlist to token set using shapeless evidences
-    val tokenSet: Set[Token[_]] = tokenListIsListOfTokens(dependencyHList).toSet
-    assert(!tokenSet.contains(thisToken), s"$thisToken cannot depend on itself using 'dependsOn'. use 'amend' instead")
+    val tokenSet: Set[Token[_]] = _tokenListIsListOfTokens(_dependingTokenHList).toSet
     // create concrete implementation
-    Implementation(thisToken, new DirectImplementation[R](tokenSet) {
+    val impl = Implementation(_tokenAmended, new DirectImplementation[R](tokenSet) {
       override private[niffler] def forceEvaluate(cache: ExecutionCache): R = {
         // Swap the dynamic variable "cacheBinding". This ensures we use the provided cache during CacheFetcher transform
         CacheFetcher.cacheBinding.withValue(cache) {
           // We have proven that TokenList can convert to ValueList using CacheFetcher
           // So now we convert a list of token to it's underlying type lists
           // e.g. List(Token[Int], Token[String], Token[Boolean]) to List(Int, String, Boolean)
-          val valueList: ValueList = tokenListCanYieldVarTypeList(dependencyHList)
-          // We have also proven that FunctionType is (ValueList) => R
-          val f = implementationTakesVarListAndReturnsR(implementation)
-          // Applying this function on the ValueList
+          val valueList: _ValueList = _tokenListCanYieldVarTypeList(_dependingTokenHList)
+          // Applying this function on the ValueList plus existing value
+          // Now the result is an amendment to previous execution's result
+          val f = _implementationTakesVarListAndReturnsR(function)
           f(valueList)
         }
       }
     })
-  }
-
-  /**
-    * Simplest version of creating an [[Implementation]] that depends on only one other token
-    *
-    * @param t1             other token that this token will depend on
-    * @param implementation a function that takes [[T]] and returns [[R]]
-    * @tparam T the type for the t1
-    * @return an [[Implementation]]
-    */
-  def dependsOn[T](t1: Token[T])(implementation: (T) => R): Implementation[R] = {
-    assert(t1 != thisToken, s"$thisToken cannot depend on itself using 'dependsOn'. use 'amend' instead")
-    Implementation(thisToken, new DirectImplementation[R](Set(t1)) {
-      override private[niffler] def forceEvaluate(cache: ExecutionCache): R = {
-        implementation(cache(t1))
-      }
-    })
+    Option(addToCollection).foreach(c => c.addImpl(impl))
+    impl
   }
 
 }

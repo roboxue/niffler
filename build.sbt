@@ -8,6 +8,7 @@ scalaVersion in ThisBuild := "2.11.8"
 crossScalaVersions in ThisBuild := Seq("2.10.6", "2.11.8", "2.12.2")
 name := "niffler"
 description := "Proof of concept for using sbt syntax in production scala code"
+ivyScala := ivyScala.value map { _.copy(overrideScalaVersion = true) }
 noPublishSettings
 
 lazy val core = nifflerProject("core", enablePublish = true)
@@ -35,7 +36,7 @@ def nifflerProject(projectName: String, enablePublish: Boolean): Project =
     .settings(moduleName := s"niffler-$projectName")
 
 lazy val commonSettings = Seq(
-  scalacOptions := Seq("-deprecation", "-feature", "-language:implicitConversions", "-language:higherKinds", "-Xlint"),
+  scalacOptions := Seq("-deprecation", "-feature", "-language:implicitConversions", "-language:higherKinds"),
   javacOptions := Seq("-source", "1.8", "-target", "1.8"),
   libraryDependencies ++= Seq(),
   libraryDependencies ++= Seq("org.scalatest" %% "scalatest" % scalatest).map(_ % "test")

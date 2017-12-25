@@ -13,10 +13,16 @@ import scala.concurrent.duration.Duration
   * @author rxue
   * @since 12/15/17.
   */
-class Logic private (private[niffler] val topology: DirectedAcyclicGraph[Token[_], DefaultEdge],
-                     bindings: Map[Token[_], DirectImplementation[_]],
+class Logic private (bindings: Map[Token[_], DirectImplementation[_]],
                      cachingPolicies: Map[Token[_], CachingPolicy],
                      missingInitialImpl: Set[Token[_]]) {
+  private[niffler] val topology: DirectedAcyclicGraph[Token[_], DefaultEdge] = {
+    val g = new DirectedAcyclicGraph[Token[_], DefaultEdge](classOf[DefaultEdge])
+    for ((token, impl) <- bindings) {
+      Graphs.addIncomingEdges(g, token, impl.dependency)
+    }
+    g
+  }
 
   /**
     * Try execute the token in async mode
@@ -105,7 +111,6 @@ object Logic {
     * @return
     */
   def apply(binding: Seq[Implementation[_]], cachingPolicies: Map[Token[_], CachingPolicy] = Map.empty): Logic = {
-    val topology = new DirectedAcyclicGraph[Token[_], DefaultEdge](classOf[DefaultEdge])
     val finalBindingMap: mutable.Map[Token[_], DirectImplementation[_]] = mutable.Map.empty
     val missingInitialImpl: mutable.Set[Token[_]] = mutable.Set.empty
     for (Implementation(token, impl) <- binding) {
@@ -121,10 +126,7 @@ object Logic {
           }
       }
     }
-    for ((token, impl) <- finalBindingMap) {
-      Graphs.addIncomingEdges(topology, token, impl.dependency)
-    }
 
-    new Logic(topology, finalBindingMap.toMap, cachingPolicies, missingInitialImpl.toSet)
+    new Logic(finalBindingMap.toMap, cachingPolicies, missingInitialImpl.toSet)
   }
 }

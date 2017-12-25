@@ -3,7 +3,7 @@ package com.roboxue.niffler
 /**
   * Implementation is a typed binding of [[Token]] and [[ImplementationLike]]
   * Don't create this class directly.
-  * Use helper methods in [[Token]] like [[Token.dependsOn]], [[Token.assign]] or [[Token.amendWith]]
+  * Use helper methods in [[Token]] like [[Token.dependsOn]], [[Token.assign]] or [[Token.amend]]
   *
   * @param token the token whose implementation is being provided here
   * @param impl the implementation, can either be [[DirectImplementation]] or [[IncrementalImplementation]]
