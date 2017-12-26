@@ -5,7 +5,7 @@ import java.util.concurrent.TimeUnit
 import akka.actor.ActorSystem
 import akka.testkit.{DefaultTimeout, TestKit}
 import com.roboxue.niffler.execution._
-import org.scalatest.{FlatSpecLike, Matchers}
+import org.scalatest.{BeforeAndAfterEach, FlatSpecLike, Matchers}
 
 import scala.concurrent.duration.Duration
 
@@ -13,8 +13,20 @@ import scala.concurrent.duration.Duration
   * @author rxue
   * @since 12/18/17.
   */
-class LogicTest extends TestKit(ActorSystem("NifflerTest")) with FlatSpecLike with Matchers with DefaultTimeout {
-  AsyncExecution.setActorSystem(system)
+class LogicTest
+    extends TestKit(ActorSystem("NifflerTest"))
+    with FlatSpecLike
+    with Matchers
+    with DefaultTimeout
+    with BeforeAndAfterEach {
+
+  override protected def beforeEach(): Unit = {
+    Niffler.init(Array.empty, Some(system))
+  }
+
+  override protected def afterEach(): Unit = {
+    Niffler.terminate(false)
+  }
 
   it should "run with dependsOn" in {
     val k1 = Token[Int]("k1")
@@ -62,13 +74,13 @@ class LogicTest extends TestKit(ActorSystem("NifflerTest")) with FlatSpecLike wi
         cache.getValues shouldBe Map(t1 -> "hello", t2 -> 3, t3 -> 8)
     }
     val logic2: Logic = Logic(Seq(t3Impl, t3Amend))
-    logic2.syncRun(t3, ExecutionCache.fromValue(Map(t1 -> "wow", t2 -> 6))) match {
+    logic2.syncRun(t3, cache = ExecutionCache.fromValue(Map(t1 -> "wow", t2 -> 6))) match {
       case ExecutionResult(result, _, cache) =>
         result shouldBe 9
         cache.getValues shouldBe Map(t1 -> "wow", t2 -> 6, t3 -> 9)
     }
     val logic3: Logic = Logic(Seq(t3Amend))
-    logic3.syncRun(t3, ExecutionCache.fromValue(Map(t1 -> "wow", t2 -> 6, t3 -> 42))) match {
+    logic3.syncRun(t3, cache = ExecutionCache.fromValue(Map(t1 -> "wow", t2 -> 6, t3 -> 42))) match {
       case ExecutionResult(result, _, cache) =>
         result shouldBe 48
         cache.getValues shouldBe Map(t1 -> "wow", t2 -> 6, t3 -> 48)
@@ -139,7 +151,7 @@ class LogicTest extends TestKit(ActorSystem("NifflerTest")) with FlatSpecLike wi
     val t3Amend2: Implementation[Int] = t3.amendWith(_ + 1)
     val logic3: Logic = Logic(Seq(t3Amend1, t3Amend2, t2.assign(6)))
     logic3
-      .syncRun(t3, ExecutionCache(Map(t3 -> ExecutionCacheEntry(42))), timeout = timeout.duration)
+      .syncRun(t3, cache = ExecutionCache(Map(t3 -> ExecutionCacheEntry(42))), timeout = timeout.duration)
       .result shouldBe 49
   }
 

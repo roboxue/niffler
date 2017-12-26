@@ -17,9 +17,21 @@ case class NifflerEvaluationException(snapshot: ExecutionSnapshot,
                                       stats: TokenEvaluationStats,
                                       exception: Throwable)
     extends Exception {
+  setStackTrace(exception.getStackTrace)
+
   def getPaths: Seq[GraphPath[Token[_], DefaultEdge]] = {
     new AllDirectedPaths(snapshot.logic.topology)
       .getAllPaths(tokenWithException, snapshot.tokenToEvaluate, true, null)
       .toSeq
+  }
+
+  override def getMessage: String = {
+    snapshot.tokenToEvaluate.debugString
+  }
+
+  override def toString: String = {
+    s"""when evaluating NifflerToken ${snapshot.tokenToEvaluate.debugString} in logic ${snapshot.logic.name}
+       |Caused by ${tokenWithException.debugString}:
+       |${exception.toString}""".stripMargin
   }
 }

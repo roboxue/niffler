@@ -101,6 +101,7 @@ class ExecutionActor[T](promise: Promise[ExecutionResult[T]],
 object ExecutionActor {
 
   case object Invoke
+
   case object Cancel
 
   def props[T](promise: Promise[ExecutionResult[T]],

@@ -21,7 +21,8 @@ lazy val core = nifflerProject("core", enablePublish = true)
       "com.typesafe.akka" %% "akka-testkit" % akka % Test,
       "org.scala-lang" % "scala-reflect" % scalaVersion.value,
       "org.jgrapht" % "jgrapht-core" % jgrapht
-    )
+    ),
+    parallelExecution in Test := false
   )
 
 lazy val example = nifflerProject("example", enablePublish = false).dependsOn(core)

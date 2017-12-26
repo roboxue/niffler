@@ -6,6 +6,7 @@ import scala.concurrent.duration.FiniteDuration
 
 /**
   * (A) -> B, (A) -> C, (B,C) -> D, (A,D) -> E
+  *
   * @author rxue
   * @since 12/19/17.
   */
@@ -30,4 +31,5 @@ object CachingPolicy {
     * the [[ExecutionCache]] in the [[ExecutionResult]] will also contain A's result, but won't be used after expiration
     */
   case class Timed(duration: FiniteDuration) extends CachingPolicy
+
 }

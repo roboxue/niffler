@@ -18,25 +18,19 @@ trait DependencySyntax[R] {
   /**
     * Special situation when this token is implemented without any dependencies
     *
-    * @param value           a lazy function knows how to calculate the value
-    * @param addToCollection if provided (provided automatically inside a [[Niffler]] trait), add the return value to it
+    * @param value a lazy function knows how to calculate the value
     * @return an [[Implementation]]
     */
-  def assign(value: => R)(implicit addToCollection: Niffler = null): Implementation[R] = {
-    val impl = new Implementing[() => R, R] {
-      override protected type _TokenList = HNil
-      override protected type _ValueList = HNil
-      override protected val _tokenListIsListOfTokens: ToTraversable.Aux[_TokenList, List, Token[_]] =
-        implicitly[ToTraversable.Aux[_TokenList, List, Token[_]]]
-      override protected val _tokenListCanYieldVarTypeList: Mapper.Aux[CacheFetcher.type, _TokenList, _ValueList] =
-        implicitly
-      override protected val _implementationTakesVarListAndReturnsR: FnToProduct.Aux[() => R, HNil => R] =
-        implicitly
-      override protected val _tokenAmended: Token[R] = thisToken
-      override protected val _dependingTokenHList: _TokenList = HNil
-    }.usingFunction(() => value)
-    Option(addToCollection).foreach(c => c.addImpl(impl))
-    impl
+  def assign(value: => R): Implementation[R] = {
+    Implementation(thisToken, new DirectImplementation[R](Set.empty) {
+      override private[niffler] def forceEvaluate(cache: ExecutionCache): R = {
+        value
+      }
+    })
+  }
+
+  def linkFrom(anotherToken: Token[R]): Implementation[R] = {
+    dependsOn(anotherToken).usingFunction(r => r)
   }
 
   /**
@@ -134,16 +128,15 @@ sealed trait Implementing[FunctionType, R] {
   /**
     * Complete the amending process with an implementation function
     *
-    * @param function        a function that take [[R]] and the same length of parameters
-    *                        as dependencies and returns [[R]]
-    * @param addToCollection if provided (provided automatically inside a [[Niffler]] trait), add the return value to it
+    * @param function a function that take [[R]] and the same length of parameters
+    * as dependencies and returns [[R]]
     * @return
     */
-  def usingFunction(function: FunctionType)(implicit addToCollection: Niffler = null): Implementation[R] = {
+  def usingFunction(function: FunctionType): Implementation[R] = {
     // convert token hlist to token set using shapeless evidences
     val tokenSet: Set[Token[_]] = _tokenListIsListOfTokens(_dependingTokenHList).toSet
     // create concrete implementation
-    val impl = Implementation(_tokenAmended, new DirectImplementation[R](tokenSet) {
+    Implementation(_tokenAmended, new DirectImplementation[R](tokenSet) {
       override private[niffler] def forceEvaluate(cache: ExecutionCache): R = {
         // Swap the dynamic variable "cacheBinding". This ensures we use the provided cache during CacheFetcher transform
         CacheFetcher.cacheBinding.withValue(cache) {
@@ -158,8 +151,6 @@ sealed trait Implementing[FunctionType, R] {
         }
       }
     })
-    Option(addToCollection).foreach(c => c.addImpl(impl))
-    impl
   }
 
 }

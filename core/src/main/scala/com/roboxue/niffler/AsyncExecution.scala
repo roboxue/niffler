@@ -15,21 +15,8 @@ import scala.concurrent.{Await, ExecutionContext, Future, Promise}
   * @since 12/15/17.
   */
 object AsyncExecution {
-  private var actorSystem: Option[ActorSystem] = None
-
-  def setActorSystem(system: ActorSystem): Unit = {
-    actorSystem = Some(system)
-  }
-
-  private def getActorSystem: ActorSystem = {
-    if (actorSystem.isEmpty) {
-      actorSystem = Some(ActorSystem("niffler"))
-    }
-    actorSystem.get
-  }
-
   def apply[T](logic: Logic, token: Token[T], cache: ExecutionCache): AsyncExecution[T] = {
-    new AsyncExecution[T](logic, cache, token, getActorSystem).trigger()
+    new AsyncExecution[T](logic, cache, token, Niffler.getActorSystem).trigger()
   }
 }
 
@@ -50,9 +37,10 @@ class AsyncExecution[T] private (logic: Logic,
 
   /**
     * Wrapper around Await(promise.future, timeout), yield a more friendly [[NifflerTimeoutException]] on timeout
+    *
     * @param timeout either [[Duration.Inf]] or a [[FiniteDuration]]
     * @return execution result if successfully executed
-    * @throws NifflerTimeoutException if timeout
+    * @throws NifflerTimeoutException    if timeout
     * @throws NifflerEvaluationException if runtime exception encountered
     */
   def await(timeout: Duration): ExecutionResult[T] = {

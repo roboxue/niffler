@@ -5,12 +5,12 @@ import com.roboxue.niffler.{ExecutionCache, Logic, Token}
 import scala.language.existentials
 
 /**
-  * @param logic           the logic being executed
+  * @param logic the logic being executed
   * @param tokenToEvaluate the token to be evaluated
-  * @param cache           current internal cache during execution
-  * @param ongoing         tokens being evaluated
-  * @param invocationTime  evaluation started
-  * @param asOfTime        snapshot generation time
+  * @param cache internal cache during execution
+  * @param ongoing tokens still being evaluated
+  * @param invocationTime evaluation started
+  * @param asOfTime snapshot generation time
   * @author rxue
   * @since 12/19/17.
   */

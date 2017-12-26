@@ -112,18 +112,15 @@ trait CompoundSyntax[R] {
     * Simplest version of creating an [[Implementation]] that amend this token's existing value in cache during runtime
     * and depends on only one other token
     *
-    * @param function        a function that takes (existingValue:[[R]]) and returns the amended value (returns [[R]])
-    * @param addToCollection if provided (provided automatically inside a [[Niffler]] trait), add the return value to it
+    * @param function a function that takes (existingValue:[[R]]) and returns the amended value (returns [[R]])
     * @return Auto generated [[Amending]] calling for a concrete function
     */
-  def amendWith(function: R => R)(implicit addToCollection: Niffler = null): Implementation[R] = {
-    val impl = Implementation(thisToken, new IncrementalImplementation[R](Set.empty) {
+  def amendWith(function: R => R): Implementation[R] = {
+    Implementation(thisToken, new IncrementalImplementation[R](Set.empty) {
       override private[niffler] def forceEvaluate(cache: ExecutionCache, existingValue: R): R = {
         function(existingValue)
       }
     })
-    Option(addToCollection).foreach(c => c.addImpl(impl))
-    impl
   }
 }
 
@@ -132,7 +129,7 @@ trait CompoundSyntax[R] {
   * This class SHOULD NOT exist alone, always call apply function immediately to convert to an [[Implementation]] instead
   *
   * @tparam FunctionType the type of the function needed
-  * @tparam R            the return type of this [[FunctionType]]
+  * @tparam R the return type of this [[FunctionType]]
   */
 sealed trait Amending[FunctionType, R] {
   protected type _TokenList <: HList
@@ -146,16 +143,14 @@ sealed trait Amending[FunctionType, R] {
   /**
     * Complete the amending process with an implementation function
     *
-    * @param function        a function that take [[R]] and the same length of parameters
-    *                        as dependencies and returns [[R]]
-    * @param addToCollection if provided (provided automatically inside a [[Niffler]] trait), add the return value to it
+    * @param function a function that take [[R]] and the same length of parameters as dependencies and returns [[R]]
     * @return
     */
-  def usingFunction(function: FunctionType)(implicit addToCollection: Niffler = null): Implementation[R] = {
+  def usingFunction(function: FunctionType): Implementation[R] = {
     // convert token hlist to token set using shapeless evidences
     val tokenSet: Set[Token[_]] = _tokenListIsListOfTokens(_dependingTokenHList).toSet
     // create concrete implementation
-    val impl = Implementation(_tokenAmended, new IncrementalImplementation[R](tokenSet) {
+    Implementation(_tokenAmended, new IncrementalImplementation[R](tokenSet) {
       override private[niffler] def forceEvaluate(cache: ExecutionCache, existingValue: R): R = {
         // Swap the dynamic variable "cacheBinding". This ensures we use the provided cache during CacheFetcher transform
         CacheFetcher.cacheBinding.withValue(cache) {
@@ -170,7 +165,5 @@ sealed trait Amending[FunctionType, R] {
         }
       }
     })
-    Option(addToCollection).foreach(c => c.addImpl(impl))
-    impl
   }
 }
