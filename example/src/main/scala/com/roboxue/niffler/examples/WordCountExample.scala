@@ -28,27 +28,27 @@ object WordCountExample extends Niffler {
   final val writeToFile: Token[Unit] = Token("write result to file")
 
   // -- provide implementation for each token
-  $$(paragraphToProcess.dependsOn(Niffler.argv) usingFunction (argv => {
+  $$(paragraphToProcess.dependsOn(Niffler.argv) { argv =>
     Source.fromFile(argv.head).getLines()
-  }))
+  })
 
-  $$(wordCount.dependsOn(paragraphToProcess) usingFunction (paragraph => {
+  $$(wordCount.dependsOn(paragraphToProcess) { paragraph =>
     paragraph
       .flatMap(_.split("\\s+"))
       .toSeq
       .groupBy(w => w)
       .mapValues(w => w.length)
-  }))
+  })
 
-  $$(locationToWrite.dependsOn(Niffler.argv) usingFunction (argv => {
+  $$(locationToWrite.dependsOn(Niffler.argv) { argv =>
     argv(1)
-  }))
+  })
 
-  $$(writeToFile.dependsOn(wordCount, locationToWrite) usingFunction ((map, location) => {
+  $$(writeToFile.dependsOn(wordCount, locationToWrite) { (map, location) =>
     val writer = new PrintWriter(new File(location))
     for ((key, value) <- map) {
       writer.println(s"$key -> $value")
     }
     writer.close()
-  }))
+  })
 }

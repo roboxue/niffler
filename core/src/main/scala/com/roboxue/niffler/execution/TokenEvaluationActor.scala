@@ -13,7 +13,7 @@ class TokenEvaluationActor[T](token: Token[T], impl: DirectImplementation[T]) ex
   override def receive: Receive = {
     case TokenEvaluationActor.Evaluate(executionCache) =>
       val result = scala.concurrent.blocking {
-        Try(impl.forceEvaluate(executionCache))
+        Try(impl.eval(executionCache))
       }
       sender() ! TokenEvaluationActor.EvaluateComplete(token, result)
   }

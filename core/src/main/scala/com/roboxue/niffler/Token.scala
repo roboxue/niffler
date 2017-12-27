@@ -2,7 +2,7 @@ package com.roboxue.niffler
 
 import java.util.UUID
 
-import com.roboxue.niffler.syntax.{CompoundSyntax, DependencySyntax}
+import com.roboxue.niffler.syntax.{CompoundSyntax, TokenSyntax}
 
 import scala.reflect.runtime.universe.TypeTag
 
@@ -12,7 +12,7 @@ import scala.reflect.runtime.universe.TypeTag
   */
 case class Token[R: TypeTag](name: String, uuid: String = UUID.randomUUID().toString)
     extends CompoundSyntax[R]
-    with DependencySyntax[R] {
+    with TokenSyntax[R] {
 
   /**
     * Used by external to reference [[R]]

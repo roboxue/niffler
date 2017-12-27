@@ -34,23 +34,15 @@ class LogicTest
     val k3 = Token[Int]("k3")
     val k4 = Token[Int]("k4")
     val k5 = Token[Int]("k5")
-    val logic = Logic(
-      Seq(
-        k5.dependsOn(k4).usingFunction { (k4) =>
-          k4 + 5
-        },
-        k4.assign(4),
-        k3.dependsOn(k4).usingFunction { k4 =>
-          k4 + 3
-        },
-        k2.dependsOn(k4).usingFunction { k4 =>
-          k4 + 2
-        },
-        k1.dependsOn(k2, k3).usingFunction { (k2, k3) =>
-          k2 + k3 + 1
-        }
-      )
-    )
+    val logic = Logic(Seq(k5.dependsOn(k4) { (k4) =>
+      k4 + 5
+    }, k4.assign(4), k3.dependsOn(k4) { k4 =>
+      k4 + 3
+    }, k2.dependsOn(k4) { k4 =>
+      k4 + 2
+    }, k1.dependsOn(k2, k3) { (k2, k3) =>
+      k2 + k3 + 1
+    }))
 
     val ExecutionResult(result, snapshot, newCache) = logic.syncRun(k1, timeout = timeout.duration)
     result shouldBe 14
@@ -61,7 +53,7 @@ class LogicTest
     val t1: Token[String] = Token("a string")
     val t2: Token[Int] = Token("an int")
     val t3: Token[Int] = Token("another int")
-    val t3Impl: Implementation[Int] = t3.dependsOn(t1) usingFunction { (v1) =>
+    val t3Impl: Implementation[Int] = t3.dependsOn(t1) { (v1) =>
       v1.length
     }
     val t3Amend: Implementation[Int] = t3.amend(t2) usingFunction { (v3, v2) =>
@@ -95,17 +87,17 @@ class LogicTest
     val k5 = Token[Int]("k5")
     val logic = Logic(
       Seq(
-        k5.dependsOn(k4).usingFunction { (k4) =>
+        k5.dependsOn(k4) { (k4) =>
           k4 + 5
         },
         k4.assign(4),
-        k3.dependsOn(k4).usingFunction { k4 =>
+        k3.dependsOn(k4) { k4 =>
           k4 + 3
         },
-        k2.dependsOn(k4).usingFunction { k4 =>
+        k2.dependsOn(k4) { k4 =>
           k4 + 2
         },
-        k1.dependsOn(k2, k3).usingFunction { (k2, k3) =>
+        k1.dependsOn(k2, k3) { (k2, k3) =>
           // make sure k2's cache will always expire after this round of execution
           Thread.sleep(30)
           k2 + k3 + 1
@@ -126,9 +118,9 @@ class LogicTest
     val k3 = Token[Int]("k3")
     val logic = Logic(Seq(k1.assign({
       throw new Exception("hello niffler")
-    }), k2.dependsOn(k1) usingFunction { (k1) =>
+    }), k2.dependsOn(k1) { (k1) =>
       k1 + 1
-    }, k3.dependsOn(k2) usingFunction { (k2) =>
+    }, k3.dependsOn(k2) { (k2) =>
       k2 + 1
     }))
 
@@ -174,8 +166,7 @@ class LogicTest
     val t2: Token[Int] = Token("an int")
     val t3: Token[Int] = Token("another int")
     val t3Impl: Implementation[Int] = t3
-      .dependsOn(t1, t2)
-      .usingFunction { (t1, v2) =>
+      .dependsOn(t1, t2) { (t1, v2) =>
         t1.length + v2
       }
     val logic3: Logic = Logic(Seq(t3Impl))
@@ -189,10 +180,10 @@ class LogicTest
     val k1 = Token[Int]("k1")
     val k2 = Token[Int]("k2")
     val k3 = Token[Int]("k3")
-    val logic = Logic(Seq(k1.assign(1), k2.dependsOn(k1) usingFunction { (k1) =>
+    val logic = Logic(Seq(k1.assign(1), k2.dependsOn(k1) { (k1) =>
       Thread.sleep(200)
       k1 + 1
-    }, k3.dependsOn(k2) usingFunction { (k2) =>
+    }, k3.dependsOn(k2) { (k2) =>
       k2 + 1
     }))
 

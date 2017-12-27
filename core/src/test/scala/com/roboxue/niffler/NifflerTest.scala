@@ -16,7 +16,9 @@ class NifflerTest extends FlatSpec with Matchers {
     }
     object Test2 extends Test1 {
       override def getToken2Impl: Implementation[Int] = {
-        token2.dependsOn(token1) usingFunction (_ + 3)
+        token2.dependsOn(token1) {
+          _ + 3
+        }
       }
 
     }

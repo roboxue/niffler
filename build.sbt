@@ -8,11 +8,22 @@ scalaVersion in ThisBuild := "2.11.8"
 crossScalaVersions in ThisBuild := Seq("2.10.6", "2.11.8", "2.12.2")
 name := "niffler"
 description := "Proof of concept for using sbt syntax in production scala code"
-ivyScala := ivyScala.value map { _.copy(overrideScalaVersion = true) }
+scalaModuleInfo := scalaModuleInfo.value map { _.withOverrideScalaVersion(true) }
 noPublishSettings
+
+lazy val generateCode = taskKey[Seq[File]]("Generate boilerplate code for niffler core.")
 
 lazy val core = nifflerProject("core", enablePublish = true)
   .settings(
+    sourceGenerators in Compile += {
+      generateCode
+    },
+    generateCode := {
+      sLog.value.info("Start code generation")
+      val f1 = CodeGenTokenSyntax.saveToFile(sourceManaged.value / "main")
+      sLog.value.info(s"Generation complete ${f1.toURI}")
+      Seq(f1)
+    },
     libraryDependencies ++= Seq(
       "io.monix" %% "monix" % monix,
       "com.lihaoyi" %% "sourcecode" % sourcecode,
@@ -50,6 +61,6 @@ lazy val projectMetadata =
   })
 
 // Publish and release settings
-lazy val noPublishSettings = Seq(publish := (), publishLocal := (), publishArtifact := false)
+lazy val noPublishSettings = Seq(publish := {}, publishLocal := {}, publishArtifact := false)
 lazy val publishSettings = Seq(credentials += Credentials(Path.userHome / ".ivy2" / ".credentials"))
 releaseCrossBuild := true
