@@ -16,8 +16,7 @@ import scala.concurrent.duration.Duration
   */
 class Logic private (val name: String,
                      bindings: Map[Token[_], DirectImplementation[_]],
-                     cachingPolicies: Map[Token[_], CachingPolicy],
-                     missingInitialImpl: Set[Token[_]]) {
+                     cachingPolicies: Map[Token[_], CachingPolicy]) {
   private[niffler] val topology: DirectedAcyclicGraph[Token[_], DefaultEdge] = {
     val g = new DirectedAcyclicGraph[Token[_], DefaultEdge](classOf[DefaultEdge])
     for ((token, impl) <- bindings) {
@@ -99,7 +98,7 @@ class Logic private (val name: String,
   def cachingPolicy(token: Token[_]): CachingPolicy = cachingPolicies.getOrElse(token, CachingPolicy.Forever)
 
   def checkMissingImpl(cache: ExecutionCache, forToken: Token[_]): Set[Token[_]] = {
-    getUnmetDependencies(forToken, cache).diff(bindings.keySet) ++ missingInitialImpl.diff(cache.tokens)
+    getUnmetDependencies(forToken, cache).diff(bindings.keySet)
   }
 
   private[niffler] def allDependenciesMet(token: Token[_], executionCache: ExecutionCache): Boolean = {
@@ -123,21 +122,16 @@ object Logic {
             cachingPolicies: Map[Token[_], CachingPolicy] = Map.empty,
             name: String = s"logic-${UUID.randomUUID()}"): Logic = {
     val finalBindingMap: mutable.Map[Token[_], DirectImplementation[_]] = mutable.Map.empty
-    val missingInitialImpl: mutable.Set[Token[_]] = mutable.Set.empty
-    for (Implementation(token, impl) <- binding) {
+    for (impl <- binding) {
       impl match {
-        case d: DirectImplementation[token.R0] =>
-          finalBindingMap(token) = d
-        case i: IncrementalImplementation[token.R0] =>
-          if (finalBindingMap.contains(token)) {
-            finalBindingMap(token) = i.mergeImpl(finalBindingMap(token).asInstanceOf[DirectImplementation[token.R0]])
-          } else {
-            missingInitialImpl += token
-            finalBindingMap(token) = i.amendCacheOf(token)
-          }
+        case d: DirectImplementation[_] =>
+          finalBindingMap(impl.token) = d
+        case i: IncrementalImplementation[_, _] =>
+          finalBindingMap(impl.token) =
+            i.merge(finalBindingMap.get(i.token).map(_.asInstanceOf[DirectImplementation[i.token.T0]]))
       }
     }
 
-    new Logic(name, finalBindingMap.toMap, cachingPolicies, missingInitialImpl.toSet)
+    new Logic(name, finalBindingMap.toMap, cachingPolicies)
   }
 }

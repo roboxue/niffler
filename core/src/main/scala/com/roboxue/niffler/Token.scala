@@ -2,26 +2,23 @@ package com.roboxue.niffler
 
 import java.util.UUID
 
-import com.roboxue.niffler.syntax.{CompoundSyntax, TokenSyntax}
-
+import com.roboxue.niffler.syntax.TokenSyntax
 import scala.reflect.runtime.universe.TypeTag
 
 /**
   * @author rxue
   * @since 12/15/17.
   */
-case class Token[R: TypeTag](name: String, uuid: String = UUID.randomUUID().toString)
-    extends CompoundSyntax[R]
-    with TokenSyntax[R] {
+case class Token[T: TypeTag](name: String, uuid: String = UUID.randomUUID().toString) extends TokenSyntax[T] {
 
   /**
-    * Used by external to reference [[R]]
+    * Used by external to reference [[T]]
     */
-  type R0 = R
+  type T0 = T
 
   lazy val returnTypeDescription: String = {
     import scala.reflect.runtime.universe._
-    typeOf[R].toString
+    typeOf[T].toString
   }
 
   override def toString: String = s"$name[$returnTypeDescription]"
@@ -29,11 +26,11 @@ case class Token[R: TypeTag](name: String, uuid: String = UUID.randomUUID().toSt
   def debugString: String = s"'$name'[$returnTypeDescription]($uuid)"
 
   override def canEqual(that: Any): Boolean = {
-    that.isInstanceOf[Token[R]]
+    that.isInstanceOf[Token[T]]
   }
 
   override def equals(obj: scala.Any): Boolean = {
-    canEqual(obj) && obj.asInstanceOf[Token[R]].uuid == uuid
+    canEqual(obj) && obj.asInstanceOf[Token[T]].uuid == uuid
   }
 
   override def hashCode(): Int = {

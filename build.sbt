@@ -27,7 +27,6 @@ lazy val core = nifflerProject("core", enablePublish = true)
     libraryDependencies ++= Seq(
       "io.monix" %% "monix" % monix,
       "com.lihaoyi" %% "sourcecode" % sourcecode,
-      "com.chuusai" %% "shapeless" % shapeless,
       "com.typesafe.akka" %% "akka-actor" % akka,
       "com.typesafe.akka" %% "akka-testkit" % akka % Test,
       "org.scala-lang" % "scala-reflect" % scalaVersion.value,

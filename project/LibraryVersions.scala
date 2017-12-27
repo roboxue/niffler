@@ -3,7 +3,6 @@ object LibraryVersions {
   val monix = "2.3.0"
   val sourcecode = "0.1.3"
   val commonsCollection = "4.1"
-  val shapeless = "2.3.2"
   val paradise = "2.1.0"
   val slf4j = "1.7.16"
   val log4j = "1.2.17"

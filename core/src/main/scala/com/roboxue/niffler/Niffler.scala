@@ -2,6 +2,7 @@ package com.roboxue.niffler
 
 import akka.actor.ActorSystem
 import com.roboxue.niffler.execution.CachingPolicy
+import com.roboxue.niffler.syntax.NifflerSyntax
 import monix.eval.Coeval
 
 import scala.collection.mutable
@@ -43,7 +44,7 @@ trait Niffler {
 
 }
 
-object Niffler {
+object Niffler extends NifflerSyntax {
   // global tokens
   final val argv: Token[Array[String]] = Token("commandline arguments from main function")
 

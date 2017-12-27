@@ -1,5 +1,7 @@
 import java.io.{File, PrintWriter}
 
+import scala.reflect.runtime.universe
+
 /**
   * Automatically generate some code during "sbt compile"
   * @author rxue
@@ -7,78 +9,127 @@ import java.io.{File, PrintWriter}
   */
 object CodeGenTokenSyntax {
 
-  import scala.reflect.runtime.universe
   import universe._
 
-  def applyCodeGen(length: Int): Tree = {
-    val range = Range(1, length + 1).toList
-    val tparams: List[TypeDef] = TypeDef(Modifiers(), TypeName("R"), List.empty, TypeTree()) +: range.map(i => {
+  private def typeParameters(range: List[Int]): List[TypeDef] = {
+    range.map(i => {
       TypeDef(Modifiers(), TypeName(s"T$i"), List.empty, TypeTree())
     })
-    val functionTparams = range.map(i => {
+  }
+
+  private def tokenParameters(range: List[Int]): List[ValDef] = {
+    range.map(i => {
+      ValDef(Modifiers(), TermName(s"t$i"), q"Token[${TypeName(s"T$i")}]", EmptyTree)
+    })
+  }
+
+  private def tokensWithoutType(range: List[Int]): List[Tree] = {
+    range.map(i => {
+      q"${Ident(TermName(s"t$i"))}"
+    })
+  }
+
+  private def functionTypeParameter(range: List[Int]): List[Tree] = {
+    range.map(i => {
       q"${TermName(s"T$i")}"
     })
-    val params: List[List[ValDef]] = List(range.map(i => {
-      ValDef(Modifiers(), TermName(s"t$i"), q"Token[${TypeName(s"T$i")}]", EmptyTree)
-    }), List(ValDef(Modifiers(), TermName(s"f"), tq"(..$functionTparams)=>R", EmptyTree)))
-    val tokens: List[List[Tree]] = List(range.map(i => {
-      q"${Ident(TermName(s"t$i"))}"
-    }))
-    val tokenValues: List[List[Tree]] = List(range.map(i => {
+  }
+
+  private def getTokenFromCache(range: List[Int]): List[Tree] = {
+    range.map(i => {
       q"cache(${Ident(TermName(s"t$i"))})"
-    }))
-    q"""def apply[..$tparams](...$params): DirectImplementation[R] = {
-          new DirectImplementation[R](Set(...$tokens), (cache) => f(...$tokenValues))
+    })
+  }
+
+  def evalTokenCodeGen(length: Int): Tree = {
+    val range = Range(1, length + 1).toList
+    q"""def evalTokens[..${typeParameters(range)}, T]
+          (..${tokenParameters(range)})
+          (f: (..${functionTypeParameter(range)}) => T): TokenEvaluation[T] = {
+          TokenEvaluation[T](Set(..${tokensWithoutType(range)}), 
+                             (cache) => f(..${getTokenFromCache(range)}))
         }
      """
   }
 
   def dependsOnCodeGen(length: Int): Tree = {
     val range = Range(1, length + 1).toList
-    val tparams: List[TypeDef] = range.map(i => {
-      TypeDef(Modifiers(), TypeName(s"T$i"), List.empty, TypeTree())
-    })
-    val functionTparams = range.map(i => {
-      q"${TermName(s"T$i")}"
-    })
-    val params: List[List[ValDef]] = List(range.map(i => {
-      ValDef(Modifiers(), TermName(s"t$i"), q"Token[${TypeName(s"T$i")}]", EmptyTree)
-    }), List(ValDef(Modifiers(), TermName(s"f"), tq"(..$functionTparams)=>R", EmptyTree)))
-    val tokens: List[List[Tree]] = List(range.map(i => {
-      q"${Ident(TermName(s"t$i"))}"
-    }))
-    q"""def dependsOn[..$tparams](...$params): Implementation[R] = {
-          Implementation[R](thisToken, DependsOnTokens(...$tokens)(f))
+    q"""def dependsOn[..${typeParameters(range)}]
+          (..${tokenParameters(range)})
+          (f: (..${functionTypeParameter(range)}) => T): DirectImplementation[T] = {
+          dependsOnEval(Niffler.evalTokens(..${tokensWithoutType(range)})(f))
+        }"""
+  }
+
+  def amendWithCodeGen(length: Int): Tree = {
+    val range = Range(1, length + 1).toList
+    q"""def amendWith[..${typeParameters(range)}, R]
+          (..${tokenParameters(range)})
+          (f: (..${functionTypeParameter(range)}) => R)
+          (implicit canAmendTWithR: Append.Value[T, R]): 
+          IncrementalImplementation[T, R] = {
+          amendWithEval(Niffler.evalTokens(..${tokensWithoutType(range)})(f))
+        }"""
+  }
+
+  def nifflerSyntaxCodeGen(count: Int): Tree = {
+    val evalFunctions = Range(1, count + 1).toList.map(evalTokenCodeGen)
+    q"""
+       trait NifflerSyntax {
+        def constant[T](constant: => T): TokenEvaluation[T] = {
+          TokenEvaluation(Set.empty, (cache) => constant)
         }
+        
+        def evalToken[T](t1: Token[T]): TokenEvaluation[T] = {
+          evalTokens(t1)(i => i)
+        }
+        
+        ..$evalFunctions
+       }
      """
   }
 
-  def generateCode(count: Int): Tree = {
-    val applyFunctions = Range(1, count + 1).toList.map(applyCodeGen)
-
+  def tokenSyntaxCodeGen(count: Int): Tree = {
     val dependsOnFunctions = Range(1, count + 1).toList.map(dependsOnCodeGen)
+    val amendWithFunctions = Range(1, count + 1).toList.map(amendWithCodeGen)
+    q"""
+      trait TokenSyntax[T] {
+        thisToken: Token[T] =>
 
+        def assign(constant: => T): DirectImplementation[T] = {
+          dependsOnEval(Niffler.constant(constant))
+        }
+
+        def amendWith[R](constant: => R)
+                        (implicit canAmendTWithR: Append.Value[T, R]): IncrementalImplementation[T, R] = {
+          IncrementalImplementation(thisToken, Niffler.constant(constant), canAmendTWithR)
+        }
+
+        def dependsOnEval(eval: TokenEvaluation[T]): DirectImplementation[T] = {
+          DirectImplementation(thisToken, eval)
+        }
+
+        def amendWithEval[R](eval: TokenEvaluation[R])
+                            (implicit canAmendTWithR: Append.Value[T, R]): IncrementalImplementation[T, R] = {
+          IncrementalImplementation(thisToken, eval, canAmendTWithR)
+        }
+
+        ..$dependsOnFunctions
+
+        ..$amendWithFunctions
+      }
+      """
+  }
+
+  def generateCode(count: Int): Tree = {
     q"""
       package com.roboxue.niffler.syntax {
-        import com.roboxue.niffler.{DirectImplementation, ExecutionCache, Implementation, Token}
-        
-        object DependsOnTokens {
-          def apply[R](value: => R): DirectImplementation[R] = {
-            new DirectImplementation[R](Set.empty, (cache) => value)
-          }
-          
-          ..$applyFunctions
-        }
-        
-        trait TokenSyntax[R] {
-          thisToken: Token[R] =>
+        import com.roboxue.niffler._
+        import com.roboxue.niffler.execution.Append
+       
+        ..${nifflerSyntaxCodeGen(count)}
 
-          def assign(impl: => R): Implementation[R] = {
-            Implementation(thisToken, DependsOnTokens(impl))
-          }
-          
-          ..$dependsOnFunctions
-        }
+        ..${tokenSyntaxCodeGen(count)}
       }
       """
   }

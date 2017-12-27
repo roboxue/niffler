@@ -1,36 +1,40 @@
 package com.roboxue.niffler
 
+import com.roboxue.niffler.execution.Append
+
 /**
   * Implementation is a typed binding of [[Token]] and [[ImplementationLike]]
   * Don't create this class directly.
-  * Use helper methods in [[Token]] like [[Token.dependsOn]], [[Token.assign]] or [[Token.amend]]
+  * Use helper methods in [[Token]] like [[Token.dependsOn]], [[Token.assign]]
   *
   * @param token the token whose implementation is being provided here
   * @param impl the implementation, can either be [[DirectImplementation]] or [[IncrementalImplementation]]
   * @author rxue
   * @since 12/15/17.
   */
-case class Implementation[T] private[niffler] (token: Token[T], impl: ImplementationLike[T])
+case class DirectImplementation[T] private[niffler] (token: Token[T], eval: TokenEvaluation[T])
+    extends Implementation[T] {
+  override def dependency: Set[Token[_]] = eval.dependency
+}
 
-case class DirectImplementation[T] private[niffler] (dependency: Set[Token[_]], eval: ExecutionCache => T)
-    extends ImplementationLike[T]
+case class IncrementalImplementation[T, R] private[niffler] (token: Token[T],
+                                                             eval: TokenEvaluation[R],
+                                                             amendable: Append.Value[T, R])
+    extends Implementation[T] {
+  override def dependency: Set[Token[_]] = eval.dependency
 
-object DirectImplementation {
-  def apply[T1, T2, R](t1: Token[T1], t2: Token[T2])(impl: (T1, T2) => R): DirectImplementation[R] = {
-    new DirectImplementation(Set(t1, t2), (cache) => impl(cache(t1), cache(t2)))
+  def merge(existingImpl: Option[DirectImplementation[T]]): DirectImplementation[T] = {
+    val newDependency: Set[Token[_]] = dependency ++ existingImpl.map(_.dependency).getOrElse(Set.empty)
+    DirectImplementation(token, TokenEvaluation(newDependency, (cache) => {
+      val existingValue: T = existingImpl.map(_.eval(cache)).getOrElse(cache.get(token).getOrElse(amendable.empty))
+      val newValue: R = eval(cache)
+      amendable.appendValue(existingValue, newValue)
+    }))
   }
 }
 
-abstract class IncrementalImplementation[T](val dependency: Set[Token[_]]) extends ImplementationLike[T] {
-  private[niffler] def forceEvaluate(cache: ExecutionCache, existingValue: T): T
+sealed trait Implementation[T] {
+  val token: Token[T]
 
-  final private[niffler] def mergeImpl(impl: DirectImplementation[T]): DirectImplementation[T] = {
-    new DirectImplementation[T](dependency ++ impl.dependency, cache => forceEvaluate(cache, impl.eval(cache)))
-  }
-
-  final private[niffler] def amendCacheOf(token: Token[T]): DirectImplementation[T] = {
-    new DirectImplementation[T](dependency, cache => forceEvaluate(cache, cache(token)))
-  }
+  def dependency: Set[Token[_]]
 }
-
-sealed trait ImplementationLike[T] {}

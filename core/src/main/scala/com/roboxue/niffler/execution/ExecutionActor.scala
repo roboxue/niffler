@@ -27,7 +27,7 @@ class ExecutionActor[T](promise: Promise[ExecutionResult[T]],
 
   def triggerEval(token: Token[_]): Unit = {
     executionStartTime(token) = clock.millis()
-    val typedToken: Token[token.R0] = token.asInstanceOf[Token[token.R0]]
+    val typedToken: Token[token.T0] = token.asInstanceOf[Token[token.T0]]
     context.actorOf(TokenEvaluationActor.props(typedToken, logic.implForToken(typedToken))) ! TokenEvaluationActor
       .Evaluate(mutableCache.fork)
   }

@@ -56,8 +56,8 @@ class LogicTest
     val t3Impl: Implementation[Int] = t3.dependsOn(t1) { (v1) =>
       v1.length
     }
-    val t3Amend: Implementation[Int] = t3.amend(t2) usingFunction { (v3, v2) =>
-      v3 + v2
+    val t3Amend: Implementation[Int] = t3.amendWith(t2) { (v2) =>
+      v2
     }
     val logic1: Logic = Logic(Seq(t1.assign("hello"), t2.assign(3), t3Impl, t3Amend))
     logic1.syncRun(t3) match {
@@ -137,28 +137,25 @@ class LogicTest
   it should "run with amends only for a key and existing cache entry" in {
     val t2: Token[Int] = Token("an int")
     val t3: Token[Int] = Token("another int")
-    val t3Amend1: Implementation[Int] = t3.amend(t2) usingFunction { (v3, v2) =>
-      v3 + v2
+    val t3Amend1: Implementation[Int] = t3.amendWith(t2) { (v2) =>
+      v2
     }
-    val t3Amend2: Implementation[Int] = t3.amendWith(_ + 1)
+    val t3Amend2: Implementation[Int] = t3.amendWith(1)
     val logic3: Logic = Logic(Seq(t3Amend1, t3Amend2, t2.assign(6)))
     logic3
       .syncRun(t3, cache = ExecutionCache(Map(t3 -> ExecutionCacheEntry(42))), timeout = timeout.duration)
       .result shouldBe 49
   }
 
-  it should "fail with amends only for a key and no cache entry" in {
+  it should "run with amends only for a key and no cache entry" in {
     val t2: Token[Int] = Token("an int")
     val t3: Token[Int] = Token("another int")
-    val t3Amend1: Implementation[Int] = t3.amend(t2) usingFunction { (v3, v2) =>
-      v3 + v2
+    val t3Amend1: Implementation[Int] = t3.amendWith(t2) { (v2) =>
+      v2
     }
-    val t3Amend2: Implementation[Int] = t3.amendWith(_ + 1)
+    val t3Amend2: Implementation[Int] = t3.amendWith(1)
     val logic3: Logic = Logic(Seq(t3Amend1, t3Amend2, t2.assign(6)))
-    val ex = intercept[NifflerInvocationException] {
-      logic3.syncRun(t3, timeout = timeout.duration)
-    }
-    ex.tokensMissingImpl should contain only t3
+    logic3.syncRun(t3, timeout = timeout.duration).result shouldBe 7
   }
 
   it should "fail with missing implementation" in {
