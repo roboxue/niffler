@@ -3,15 +3,28 @@ package com.roboxue.niffler
 import com.roboxue.niffler.execution.Append
 
 /**
-  * Implementation is a typed binding of [[Token]] and [[ImplementationLike]]
+  * Implementation is a typed binding of [[Token]] and [[TokenEvaluation]]
   * Don't create this class directly.
-  * Use helper methods in [[Token]] like [[Token.dependsOn]], [[Token.assign]]
+  * Use helper methods in [[Token]] like [[Token.dependsOn]], [[Token.assign]], [[Token.amendWith]],
+  * or in [[Niffler]] like [[Niffler.constant]], [[Niffler.evalToken]] or [[Niffler.evalTokens]]
   *
-  * @param token the token whose implementation is being provided here
-  * @param impl the implementation, can either be [[DirectImplementation]] or [[IncrementalImplementation]]
   * @author rxue
   * @since 12/15/17.
   */
+sealed trait Implementation[T] {
+
+  /**
+    * the token whose implementation is being provided here
+    */
+  val token: Token[T]
+
+  /**
+    * the token that needs to be evaluated before this can be evaluated
+    * @return
+    */
+  def dependency: Set[Token[_]]
+}
+
 case class DirectImplementation[T] private[niffler] (token: Token[T], eval: TokenEvaluation[T])
     extends Implementation[T] {
   override def dependency: Set[Token[_]] = eval.dependency
@@ -31,10 +44,4 @@ case class IncrementalImplementation[T, R] private[niffler] (token: Token[T],
       amendable.appendValue(existingValue, newValue)
     }))
   }
-}
-
-sealed trait Implementation[T] {
-  val token: Token[T]
-
-  def dependency: Set[Token[_]]
 }

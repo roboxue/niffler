@@ -3,6 +3,7 @@ package com.roboxue.niffler.execution
 import scala.annotation.implicitNotFound
 
 /**
+  * Borrowed from SBT, this set of implicit variables can help automated [[com.roboxue.niffler.Token.amendWith]]
   * @author rxue
   * @since 7/1/17.
   */

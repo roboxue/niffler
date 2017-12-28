@@ -21,8 +21,14 @@ object AsyncExecution {
 }
 
 /**
-  * Use companion object to create an instance
-  * This class wraps all immutable information about
+  * Use companion object to create an instance. Basically a rich wrapper around a promise
+  * This class wraps all immutable information about a round of execution
+  *
+  * @param logic the logic being evaluated
+  * @param initialCache the cache being reused
+  * @param forToken the token being invoked
+  * @param system the akka actor system used to create actors
+  * @param clock the source of time, useful when testing
   */
 class AsyncExecution[T] private (logic: Logic,
                                  initialCache: ExecutionCache,
@@ -62,6 +68,10 @@ class AsyncExecution[T] private (logic: Logic,
     }
   }
 
+  /**
+    * Trigger execution by sending a [[ExecutionActor.Invoke]] message to a new [[ExecutionActor]]
+    * @return
+    */
   private[niffler] def trigger(): AsyncExecution[T] = {
     val missingImpl = logic.checkMissingImpl(initialCache, forToken)
     if (missingImpl.nonEmpty) {

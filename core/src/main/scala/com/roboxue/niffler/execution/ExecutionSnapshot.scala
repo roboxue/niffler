@@ -21,6 +21,9 @@ case class ExecutionSnapshot(logic: Logic,
                              invocationTime: Long,
                              asOfTime: Long) {
 
+  /**
+    * Utility function during debuging
+    */
   def printTimeLine(): Unit = {
     implicit object TokenEvaluationStatsOrdering extends Ordering[TokenEvaluationStats] {
       override def compare(x: TokenEvaluationStats, y: TokenEvaluationStats): Int = {

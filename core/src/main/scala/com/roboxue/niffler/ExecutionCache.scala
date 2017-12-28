@@ -8,39 +8,6 @@ import scala.collection.mutable
   * @author rxue
   * @since 12/15/17.
   */
-class MutableExecutionCache(initialState: Map[Token[_], ExecutionCacheEntry[_]]) {
-  private val storage = mutable.Map(initialState.toSeq: _*)
-
-  def tokens: Iterable[Token[_]] = storage.keys
-
-  private[niffler] def getStorage: Map[Token[_], ExecutionCacheEntry[_]] = storage.toMap
-
-  def getValues: Map[Token[_], Any] = storage.mapValues(_.result).toMap
-
-  def omit(tokens: Set[Token[_]]): ExecutionCache = {
-    new ExecutionCache(getStorage.filterKeys(p => !tokens.contains(p)))
-  }
-
-  def invalidateTtlCache(now: Long): Unit = {
-    storage.retain({
-      case (_, value) =>
-        value.ttl.isEmpty || now < value.stats.completeTime + value.ttl.get
-    })
-  }
-
-  def fork: ExecutionCache = {
-    ExecutionCache(getStorage)
-  }
-
-  def store[T](token: Token[T], value: T, stats: TokenEvaluationStats, ttl: Option[Long]): Unit = {
-    storage(token) = ExecutionCacheEntry(value, stats, ttl)
-  }
-
-  def evict[T](token: Token[T]): Unit = {
-    storage.remove(token)
-  }
-}
-
 case class ExecutionCache(storage: Map[Token[_], ExecutionCacheEntry[_]]) {
   def tokens: Set[Token[_]] = storage.keySet
 
@@ -86,5 +53,38 @@ object ExecutionCache {
     */
   private[niffler] def fromValue(map: Map[Token[_], Any]): ExecutionCache = {
     ExecutionCache(map.mapValues(v => ExecutionCacheEntry(v)))
+  }
+}
+
+class MutableExecutionCache(initialState: Map[Token[_], ExecutionCacheEntry[_]]) {
+  private val storage = mutable.Map(initialState.toSeq: _*)
+
+  def tokens: Iterable[Token[_]] = storage.keys
+
+  private[niffler] def getStorage: Map[Token[_], ExecutionCacheEntry[_]] = storage.toMap
+
+  def getValues: Map[Token[_], Any] = storage.mapValues(_.result).toMap
+
+  def omit(tokens: Set[Token[_]]): ExecutionCache = {
+    new ExecutionCache(getStorage.filterKeys(p => !tokens.contains(p)))
+  }
+
+  def invalidateTtlCache(now: Long): Unit = {
+    storage.retain({
+      case (_, value) =>
+        value.ttl.isEmpty || now < value.stats.completeTime + value.ttl.get
+    })
+  }
+
+  def fork: ExecutionCache = {
+    ExecutionCache(getStorage)
+  }
+
+  def store[T](token: Token[T], value: T, stats: TokenEvaluationStats, ttl: Option[Long]): Unit = {
+    storage(token) = ExecutionCacheEntry(value, stats, ttl)
+  }
+
+  def evict[T](token: Token[T]): Unit = {
+    storage.remove(token)
   }
 }
