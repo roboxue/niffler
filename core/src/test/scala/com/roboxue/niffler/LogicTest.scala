@@ -187,9 +187,9 @@ class LogicTest
     val nifflerEx = intercept[NifflerTimeoutException] {
       logic.syncRun(k3, timeout = Duration(100, TimeUnit.MILLISECONDS))
     }
-    nifflerEx.executionSnapshot.tokenToEvaluate shouldBe k3
-    nifflerEx.executionSnapshot.ongoing.keySet should contain only k2
-    nifflerEx.executionSnapshot.cache.tokens should contain only k1
+    nifflerEx.snapshot.tokenToEvaluate shouldBe k3
+    nifflerEx.snapshot.ongoing.keySet should contain only k2
+    nifflerEx.snapshot.cache.tokens should contain only k1
     nifflerEx.timeout.length shouldBe 100
   }
 }

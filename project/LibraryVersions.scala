@@ -9,6 +9,6 @@ object LibraryVersions {
   val scalatest = "3.0.1"
   val akka = "2.5.2"
   val akkaHttp = "10.0.6"
-  val http4s = "0.17.0-M1"
+  val http4s = "0.17.6"
   val circe = "0.8.0"
 }

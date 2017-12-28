@@ -35,6 +35,15 @@ lazy val core = nifflerProject("core", enablePublish = true)
     parallelExecution in Test := false
   )
 
+lazy val monitoring = nifflerProject("monitoring", enablePublish = true)
+  .dependsOn(core)
+  .settings(
+    libraryDependencies ++= Seq(
+      "org.http4s" %% "http4s-dsl" % http4s,
+      "org.http4s" %% "http4s-blaze-server" % http4s
+    )
+  )
+
 lazy val example = nifflerProject("example", enablePublish = false).dependsOn(core)
 
 resolvers ++= Seq(Resolver.sonatypeRepo("releases"), Resolver.sonatypeRepo("snapshots"))
