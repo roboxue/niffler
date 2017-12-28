@@ -5,6 +5,7 @@ import java.io.IOException
 import com.roboxue.niffler.{Niffler, Token}
 import org.http4s.HttpService
 import org.http4s.server.blaze.BlazeBuilder
+import org.http4s.server.{Server, staticcontent}
 
 import scala.util.Try
 
@@ -14,17 +15,33 @@ import scala.util.Try
   */
 trait NifflerMonitor {
   this: Niffler =>
+
   import NifflerMonitor.tokens._
+
   $$(nifflerMonitorService.dependsOn(nifflerMonitorSubServices) { (subServices) =>
     import org.http4s.dsl._
+    import org.http4s.twirl._
     HttpService {
       case GET -> Root =>
-        Ok("Hello niffler")
+        Ok(html.nifflerMonitorIndex(subServices))
     }
   })
+
   $$(nifflerMonitorServicePortNumber.assign(4080))
+
   $$(nifflerMonitorServiceRetry.assign(5))
-  $$(nifflerMonitorSubServices.assign(Map.empty))
+
+  $$(
+    nifflerMonitorSubServices.amendWith(
+      SubServiceWrapper(
+        "Static File Service",
+        "Serving static files",
+        "/static",
+        staticcontent.resourceService(staticcontent.ResourceService.Config(""))
+      )
+    )
+  )
+
   $$(
     nifflerMonitorStartServer.dependsOn(
       nifflerMonitorService,
@@ -33,20 +50,19 @@ trait NifflerMonitor {
       nifflerMonitorSubServices
     ) { (service, portNumber, retry, subServices) =>
       var attempt = 0
-      var launchedPort: Option[Int] = None
+      var launchedServer: Option[Server] = None
       var builder = BlazeBuilder.mountService(service, "/")
-      for ((prefix, subService) <- subServices) {
+      for (SubServiceWrapper(_, _, prefix, subService) <- subServices) {
         builder = builder.mountService(subService, prefix)
       }
       do {
-        launchedPort = Try {
+        launchedServer = Try {
           val port = portNumber + attempt
           builder.bindHttp(port, "0.0.0.0").run
-          port
         }.toOption
         attempt += 1
-      } while (launchedPort.isEmpty && attempt <= retry)
-      launchedPort.getOrElse {
+      } while (launchedServer.isEmpty && attempt <= retry)
+      launchedServer.getOrElse {
         throw new IOException(s"Cannot find an open port number between $portNumber and ${portNumber + attempt - 1}")
       }
     }
@@ -54,13 +70,27 @@ trait NifflerMonitor {
 }
 
 object NifflerMonitor {
+
   object tokens {
     final val nifflerMonitorService: Token[HttpService] = Token("niffler monitor service")
     final val nifflerMonitorServicePortNumber: Token[Int] = Token("port number for niffler monitor service")
     final val nifflerMonitorServiceRetry: Token[Int] = Token("number of attempts to find an open port")
-    final val nifflerMonitorSubServices: Token[Map[String, HttpService]] = Token(
-      "a map of url prefix (start with /) and sub http services"
+    final val nifflerMonitorSubServices: Token[Seq[SubServiceWrapper]] = Token("a list of Sub Services")
+    final val nifflerMonitorStartServer: Token[Server] = Token(
+      "launch the monitor service and return the server instance"
     )
-    final val nifflerMonitorStartServer: Token[Int] = Token("launch the monitor service and return the port number")
+  }
+
+}
+
+case class SubServiceWrapper(serviceName: String,
+                             serviceDetailsDescription: String,
+                             servicePrefix: String,
+                             service: HttpService)
+
+object NifflerMonitorTest {
+  def main(args: Array[String]): Unit = {
+    val s = new Niffler with NifflerMonitor
+    s.syncRun(NifflerMonitor.tokens.nifflerMonitorStartServer)
   }
 }

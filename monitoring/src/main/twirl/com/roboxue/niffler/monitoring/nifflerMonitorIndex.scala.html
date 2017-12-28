@@ -1,0 +1,22 @@
+@import com.roboxue.niffler.monitoring.SubServiceWrapper
+@(subServices: Seq[SubServiceWrapper])
+
+@scripts = {
+}
+
+@main("Niffler Monitoring Service", scripts) {
+<div class="container">
+        Hello Niffler
+    <div class="card-columns">
+    @for(SubServiceWrapper(name, description, prefix, _) <- subServices) {
+        <div class="card">
+            <div class="card-body">
+                <h4 class="card-title">@name</h4>
+                <p class="card-text">@description</p>
+                <a class="btn btn-primary" href="@prefix">@prefix <i class="fa fa-link"></i></a>
+            </div>
+        </div>
+    }
+    </div>
+</div>
+}

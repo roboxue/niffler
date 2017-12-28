@@ -8,7 +8,9 @@ scalaVersion in ThisBuild := "2.11.8"
 crossScalaVersions in ThisBuild := Seq("2.10.6", "2.11.8", "2.12.2")
 name := "niffler"
 description := "Proof of concept for using sbt syntax in production scala code"
-scalaModuleInfo := scalaModuleInfo.value map { _.withOverrideScalaVersion(true) }
+scalaModuleInfo := scalaModuleInfo.value map {
+  _.withOverrideScalaVersion(true)
+}
 noPublishSettings
 
 lazy val generateCode = taskKey[Seq[File]]("Generate boilerplate code for niffler core.")
@@ -37,9 +39,13 @@ lazy val core = nifflerProject("core", enablePublish = true)
 
 lazy val monitoring = nifflerProject("monitoring", enablePublish = true)
   .dependsOn(core)
+  .enablePlugins(SbtTwirl)
   .settings(
+    TwirlKeys.templateImports ++= Seq(
+      "com.roboxue.niffler.monitoring._"),
     libraryDependencies ++= Seq(
       "org.http4s" %% "http4s-dsl" % http4s,
+      "org.http4s" %% "http4s-twirl" % http4s,
       "org.http4s" %% "http4s-blaze-server" % http4s
     )
   )
