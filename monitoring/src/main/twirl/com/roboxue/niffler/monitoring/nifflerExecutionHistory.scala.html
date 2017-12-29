@@ -1,0 +1,42 @@
+@(title: String)
+
+@bodyScripts = {
+    <script data-main="static/js/nifflerExecutionHistory.js" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.5/require.min.js"></script>
+}
+
+@headScripts = {
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/2.5.13/vue.min.js"></script>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+}
+
+@template(title, bodyScripts, headScripts) {
+<div class="container container-flex" id="app">
+    <div class="jumbotron">
+        <h1 class="display-3">Execution History</h1>
+        <p>This tab will display the live executions and a portion of past execution history.</p>
+
+        <h4 v-show="loading">Loading...</h4>
+        <template v-show="!loading">
+            <h3>{{liveExecutions.length}} Live executions</h3>
+            <h5 v-if="liveExecutions.length === 0">empty</h5>
+            <history-execution
+                v-for="(exe) in liveExecutions"
+                v-on:view="viewExecution"
+                :model="exe"
+                :key="exe.executionId"
+            >
+            </history-execution>
+            <h3>{{pastExecutions.length}} Past executions</h3>
+            <h5>Storage capacity: {{capacity}}</h5>
+            <h5 v-if="pastExecutions.length === 0">empty</h5>
+            <history-execution
+                v-for="(exe) in pastExecutions"
+                v-on:view="viewExecution"
+                :model="exe"
+                :key="exe.executionId"
+            >
+            </history-execution>
+        </template>
+    </div>
+</div>
+}

@@ -6,6 +6,7 @@ import java.util.concurrent.{TimeUnit, TimeoutException}
 import akka.actor.{ActorRef, ActorSystem, PoisonPill}
 import akka.util.Timeout
 import com.roboxue.niffler.execution._
+import monix.execution.atomic.AtomicInt
 
 import scala.concurrent.duration.{Duration, FiniteDuration}
 import scala.concurrent.{Await, ExecutionContext, Future, Promise}
@@ -15,8 +16,10 @@ import scala.concurrent.{Await, ExecutionContext, Future, Promise}
   * @since 12/15/17.
   */
 object AsyncExecution {
+  private val executionId: AtomicInt = AtomicInt(0)
+
   def apply[T](logic: Logic, token: Token[T], cache: ExecutionCache): AsyncExecution[T] = {
-    new AsyncExecution[T](logic, cache, token, Niffler.getActorSystem).trigger()
+    new AsyncExecution[T](logic, cache, token, Niffler.getActorSystem)
   }
 }
 
@@ -29,17 +32,17 @@ object AsyncExecution {
   * @param forToken the token being invoked
   * @param system the akka actor system used to create actors
   * @param clock the source of time, useful when testing
+  * @param executionId unique id for this execution
   */
-class AsyncExecution[T] private (logic: Logic,
-                                 initialCache: ExecutionCache,
-                                 forToken: Token[T],
-                                 system: ActorSystem,
-                                 clock: Clock = Clock.systemUTC()) {
-  private val promise: Promise[ExecutionResult[T]] = Promise()
+case class AsyncExecution[T] private (logic: Logic,
+                                      initialCache: ExecutionCache,
+                                      forToken: Token[T],
+                                      system: ActorSystem,
+                                      clock: Clock = Clock.systemUTC(),
+                                      executionId: Int = AsyncExecution.executionId.incrementAndGet()) {
+  val promise: Promise[ExecutionResult[T]] = Promise()
   private lazy val executionActor: ActorRef =
     system.actorOf(ExecutionActor.props(promise, logic, initialCache, forToken, clock))
-
-  def future: Future[ExecutionResult[T]] = promise.future
 
   /**
     * Wrapper around Await(promise.future, timeout), yield a more friendly [[NifflerTimeoutException]] on timeout
@@ -68,21 +71,25 @@ class AsyncExecution[T] private (logic: Logic,
     }
   }
 
-  /**
-    * Trigger execution by sending a [[ExecutionActor.Invoke]] message to a new [[ExecutionActor]]
-    * @return
-    */
-  private[niffler] def trigger(): AsyncExecution[T] = {
-    val missingImpl = logic.checkMissingImpl(initialCache, forToken)
-    if (missingImpl.nonEmpty) {
-      val now = clock.millis()
+  def requestCancellation(): Unit = {
+    executionActor ! ExecutionActor.Cancel
+  }
+
+  val triggeredTime: Long = clock.millis()
+  Niffler.registerNewExecution(this)
+  logic.checkMissingImpl(initialCache, forToken) match {
+    case missingImpl if missingImpl.nonEmpty =>
       promise.tryFailure(
-        NifflerInvocationException(ExecutionSnapshot(logic, forToken, initialCache, Map.empty, now, now), missingImpl)
+        NifflerInvocationException(
+          ExecutionSnapshot(logic, forToken, initialCache, Map.empty, triggeredTime, clock.millis()),
+          missingImpl
+        )
       )
-    } else {
+    case _ =>
       executionActor ! ExecutionActor.Invoke
-      promise.future.onComplete(_ => executionActor ! PoisonPill)(ExecutionContext.global)
-    }
-    this
+      promise.future.onComplete(_ => {
+        executionActor ! PoisonPill
+        Niffler.reportExecutionComplete(this)
+      })(ExecutionContext.global)
   }
 }

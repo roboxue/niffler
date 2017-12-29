@@ -1,4 +1,5 @@
 object LibraryVersions {
+  val guava = "23.6-jre"
   val jgrapht = "1.1.0"
   val monix = "2.3.0"
   val sourcecode = "0.1.3"

@@ -21,7 +21,7 @@ class LogicTest
     with BeforeAndAfterEach {
 
   override protected def beforeEach(): Unit = {
-    Niffler.init(Array.empty, Some(system))
+    Niffler.init(Array.empty, existingActorSystem = Some(system))
   }
 
   override protected def afterEach(): Unit = {

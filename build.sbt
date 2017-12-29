@@ -32,6 +32,7 @@ lazy val core = nifflerProject("core", enablePublish = true)
       "com.typesafe.akka" %% "akka-actor" % akka,
       "com.typesafe.akka" %% "akka-testkit" % akka % Test,
       "org.scala-lang" % "scala-reflect" % scalaVersion.value,
+      "com.google.guava" % "guava" % guava,
       "org.jgrapht" % "jgrapht-core" % jgrapht
     ),
     parallelExecution in Test := false
@@ -44,8 +45,11 @@ lazy val monitoring = nifflerProject("monitoring", enablePublish = true)
     TwirlKeys.templateImports ++= Seq(
       "com.roboxue.niffler.monitoring._"),
     libraryDependencies ++= Seq(
+      "io.circe" %% "circe-generic" % circe,
+      "io.circe" %% "circe-literal" % circe,
       "org.http4s" %% "http4s-dsl" % http4s,
       "org.http4s" %% "http4s-twirl" % http4s,
+      "org.http4s" %% "http4s-circe" % http4s,
       "org.http4s" %% "http4s-blaze-server" % http4s
     )
   )

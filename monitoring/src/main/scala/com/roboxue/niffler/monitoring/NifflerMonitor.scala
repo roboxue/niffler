@@ -2,7 +2,7 @@ package com.roboxue.niffler.monitoring
 
 import java.io.IOException
 
-import com.roboxue.niffler.{Niffler, Token}
+import com.roboxue.niffler.{Logic, Niffler, Token}
 import org.http4s.HttpService
 import org.http4s.server.blaze.BlazeBuilder
 import org.http4s.server.{Server, staticcontent}
@@ -13,10 +13,14 @@ import scala.util.Try
   * @author rxue
   * @since 12/27/17.
   */
-trait NifflerMonitor {
-  this: Niffler =>
-
-  import NifflerMonitor.tokens._
+object NifflerMonitor extends Niffler {
+  final val nifflerMonitorService: Token[HttpService] = Token("niffler monitor service")
+  final val nifflerMonitorServicePortNumber: Token[Int] = Token("port number for niffler monitor service")
+  final val nifflerMonitorServiceRetry: Token[Int] = Token("number of attempts to find an open port")
+  final val nifflerMonitorSubServices: Token[Seq[SubServiceWrapper]] = Token("a list of Sub Services")
+  final val nifflerMonitorStartServer: Token[Server] = Token(
+    "launch the monitor service and return the server instance"
+  )
 
   $$(nifflerMonitorService.dependsOn(nifflerMonitorSubServices) { (subServices) =>
     import org.http4s.dsl._
@@ -69,28 +73,7 @@ trait NifflerMonitor {
   )
 }
 
-object NifflerMonitor {
-
-  object tokens {
-    final val nifflerMonitorService: Token[HttpService] = Token("niffler monitor service")
-    final val nifflerMonitorServicePortNumber: Token[Int] = Token("port number for niffler monitor service")
-    final val nifflerMonitorServiceRetry: Token[Int] = Token("number of attempts to find an open port")
-    final val nifflerMonitorSubServices: Token[Seq[SubServiceWrapper]] = Token("a list of Sub Services")
-    final val nifflerMonitorStartServer: Token[Server] = Token(
-      "launch the monitor service and return the server instance"
-    )
-  }
-
-}
-
 case class SubServiceWrapper(serviceName: String,
                              serviceDetailsDescription: String,
                              servicePrefix: String,
                              service: HttpService)
-
-object NifflerMonitorTest {
-  def main(args: Array[String]): Unit = {
-    val s = new Niffler with NifflerMonitor
-    s.syncRun(NifflerMonitor.tokens.nifflerMonitorStartServer)
-  }
-}

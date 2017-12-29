@@ -80,10 +80,6 @@ object CodeGenTokenSyntax {
           TokenEvaluation(Set.empty, (cache) => constant)
         }
         
-        def evalToken[T](t1: Token[T]): TokenEvaluation[T] = {
-          evalTokens(t1)(i => i)
-        }
-        
         ..$evalFunctions
        }
      """
@@ -96,6 +92,10 @@ object CodeGenTokenSyntax {
       trait TokenSyntax[T] {
         thisToken: Token[T] =>
 
+        def asEval: TokenEvaluation[T] = {
+          Niffler.evalTokens(thisToken)(i => i)
+        }
+
         def assign(constant: => T): DirectImplementation[T] = {
           dependsOnEval(Niffler.constant(constant))
         }
@@ -103,6 +103,15 @@ object CodeGenTokenSyntax {
         def amendWith[R](constant: => R)
                         (implicit canAmendTWithR: Append.Value[T, R]): IncrementalImplementation[T, R] = {
           IncrementalImplementation(thisToken, Niffler.constant(constant), canAmendTWithR)
+        }
+
+        def dependsOnToken(token: Token[T]): DirectImplementation[T] = {
+          dependsOnEval(token.asEval)
+        }
+
+        def amendWithToken[R](token: Token[R])
+                             (implicit canAmendTWithR: Append.Value[T, R]): IncrementalImplementation[T, R] = {
+          amendWithEval(token.asEval)
         }
 
         def dependsOnEval(eval: TokenEvaluation[T]): DirectImplementation[T] = {

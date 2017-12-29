@@ -12,11 +12,11 @@ import scala.language.existentials
   * @author rxue
   * @since 12/19/17.
   */
-case class NifflerEvaluationException(snapshot: ExecutionSnapshot,
+case class NifflerEvaluationException(override val snapshot: ExecutionSnapshot,
                                       tokenWithException: Token[_],
                                       stats: TokenEvaluationStats,
                                       exception: Throwable)
-    extends Exception {
+    extends NifflerExceptionBase(snapshot) {
   setStackTrace(exception.getStackTrace)
 
   def getPaths: Seq[GraphPath[Token[_], DefaultEdge]] = {
@@ -26,7 +26,7 @@ case class NifflerEvaluationException(snapshot: ExecutionSnapshot,
   }
 
   override def getMessage: String = {
-    snapshot.tokenToEvaluate.debugString
+    s"${exception.getClass.getName}: ${exception.getMessage}"
   }
 
   override def toString: String = {

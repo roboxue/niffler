@@ -6,7 +6,8 @@ import scala.concurrent.duration.FiniteDuration
   * @author rxue
   * @since 12/19/17.
   */
-case class NifflerTimeoutException(snapshot: ExecutionSnapshot, timeout: FiniteDuration) extends Exception {
+case class NifflerTimeoutException(override val snapshot: ExecutionSnapshot, timeout: FiniteDuration)
+    extends NifflerExceptionBase(snapshot) {
   override def getMessage: String = {
     s"timeout exception when executing ${snapshot.tokenToEvaluate.debugString} (limit: ${timeout.toString()})"
   }

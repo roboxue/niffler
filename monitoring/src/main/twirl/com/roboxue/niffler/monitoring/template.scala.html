@@ -1,4 +1,4 @@
-@(title: String, scripts: Html = Html(""), css: Html = Html(""))(content: Html)
+@(title: String, bodyScripts: Html = Html(""), headScripts: Html = Html(""), css: Html = Html(""))(content: Html)
 <html lang="en">
     <head>
         <meta charset="UTF-8"/>
@@ -13,6 +13,7 @@
         integrity="sha384-wvfXpqpZZVQGK6TAh5PVlGOfQNHSoD2xbE+QkPxCAFlNEevoEH3Sl0sibVcOQVnN"
         crossorigin="anonymous">
         @css
+        @headScripts
     </head>
     <body>
         @content
@@ -26,7 +27,7 @@
         <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-beta.2/js/bootstrap.min.js"
         integrity="sha384-alpBpkh1PFOepccYVYDB4do5UnbKysX5WZXm3XxPqe5iKTfUKjNkCk9SaVuEZflJ"
         crossorigin="anonymous"></script>
-        @scripts
+        @bodyScripts
 
     </body>
 </html>
