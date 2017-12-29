@@ -77,3 +77,13 @@ case class SubServiceWrapper(serviceName: String,
                              serviceDetailsDescription: String,
                              servicePrefix: String,
                              service: HttpService)
+
+object NifflerMonitorTest {
+  def main(args: Array[String]): Unit = {
+    Logic(Iterable(NifflerMonitor.nifflerMonitorServicePortNumber.assign({
+      throw new Exception("hello world niffler")
+    }))).asyncRun(NifflerMonitor.nifflerMonitorServicePortNumber)
+    Niffler.combine(NifflerMonitor, ExecutionHistoryService).syncRun(NifflerMonitor.nifflerMonitorServicePortNumber)
+    Niffler.combine(NifflerMonitor, ExecutionHistoryService).syncRun(NifflerMonitor.nifflerMonitorStartServer)
+  }
+}

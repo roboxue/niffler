@@ -95,11 +95,15 @@ object Niffler extends NifflerSyntax {
   private val liveExecutions: mutable.Set[AsyncExecution[_]] = mutable.Set.empty
   private var executionHistory: EvictingQueue[AsyncExecution[_]] = EvictingQueue.create(20)
 
-  private[niffler] def getLiveExecutions: Set[AsyncExecution[_]] = liveExecutions.toSet
+  private[niffler] def getHistory: (Seq[AsyncExecution[_]], Seq[AsyncExecution[_]], Int) = synchronized {
+    (getLiveExecutions, getPastExecutions, executionHistory.remainingCapacity())
+  }
 
-  private[niffler] def getExecutionHistory: (Seq[AsyncExecution[_]], Int) = synchronized {
+  private[niffler] def getLiveExecutions: Seq[AsyncExecution[_]] = liveExecutions.toSeq
+
+  private[niffler] def getPastExecutions: Seq[AsyncExecution[_]] = {
     import scala.collection.JavaConversions._
-    (executionHistory.toSeq, executionHistory.remainingCapacity())
+    executionHistory.toSeq
   }
 
   private[niffler] def registerNewExecution(execution: AsyncExecution[_]): Unit = {

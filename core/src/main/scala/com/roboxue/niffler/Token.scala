@@ -9,7 +9,7 @@ import scala.reflect.runtime.universe.TypeTag
   * @author rxue
   * @since 12/15/17.
   */
-case class Token[T: TypeTag](name: String, uuid: String = UUID.randomUUID().toString) extends TokenSyntax[T] {
+class Token[T: TypeTag](val name: String, val uuid: String, val codeName: String) extends TokenSyntax[T] {
 
   /**
     * Used by external to reference [[T]]
@@ -25,16 +25,18 @@ case class Token[T: TypeTag](name: String, uuid: String = UUID.randomUUID().toSt
 
   def debugString: String = s"'$name'[$returnTypeDescription]($uuid)"
 
-  override def canEqual(that: Any): Boolean = {
-    that.isInstanceOf[Token[T]]
-  }
-
   override def equals(obj: scala.Any): Boolean = {
-    canEqual(obj) && obj.asInstanceOf[Token[T]].uuid == uuid
+    obj.isInstanceOf[Token[T]] && obj.asInstanceOf[Token[T]].uuid == uuid
   }
 
   override def hashCode(): Int = {
     uuid.hashCode
   }
 
+}
+
+object Token {
+  def apply[T: TypeTag](name: String)(implicit _codeName: sourcecode.Name): Token[T] = {
+    new Token[T](name, UUID.randomUUID().toString, _codeName.value)
+  }
 }
