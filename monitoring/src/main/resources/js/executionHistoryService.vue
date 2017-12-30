@@ -31,8 +31,7 @@
             <div class="col-md-6">
                 <h1 class="display-3">Execution Details</h1>
                 <logic-topology v-if="activeExecution"
-                                :topology="activeExecution.topology"
-                                :targetToken="activeExecution.targetToken"
+                                :model="activeExecution"
                 ></logic-topology>
             </div>
         </div>
@@ -80,12 +79,9 @@
       },
       loadSingleExecutionTopology: function (executionId) {
         let vm = this
-        axios.get(window.location.pathname + `/api/topology/${executionId}`)
+        axios.get(window.location.pathname + `/api/execution/${executionId}`)
           .then(function (response) {
-            vm.activeExecution = {
-              topology: response.data.topology,
-              targetToken: response.data.targetToken
-            }
+            vm.activeExecution = response.data
           })
           .catch(function (error) {
             vm.activeExecution = undefined

@@ -10,6 +10,7 @@ import monix.execution.atomic.AtomicInt
 
 import scala.concurrent.duration.{Duration, FiniteDuration}
 import scala.concurrent.{Await, ExecutionContext, Future, Promise}
+import scala.util.{Failure, Success}
 
 /**
   * @author rxue
@@ -41,6 +42,7 @@ case class AsyncExecution[T] private (logic: Logic,
                                       clock: Clock = Clock.systemUTC(),
                                       executionId: Int = AsyncExecution.executionId.incrementAndGet()) {
   val promise: Promise[ExecutionResult[T]] = Promise()
+  private var finalizedSnapshot: Option[ExecutionSnapshot] = None
   private lazy val executionActor: ActorRef =
     system.actorOf(ExecutionActor.props(promise, logic, initialCache, forToken, clock))
 
@@ -57,13 +59,8 @@ case class AsyncExecution[T] private (logic: Logic,
       Await.result(promise.future, timeout)
     } catch {
       case _: TimeoutException if timeout.isFinite() =>
-        import akka.pattern._
-        val cancelTimeout = Duration(3, TimeUnit.SECONDS)
-        val snapshot = Await.result(
-          (executionActor ? ExecutionActor.Cancel)(Timeout(cancelTimeout)).mapTo[ExecutionSnapshot],
-          cancelTimeout
-        )
-        throw NifflerTimeoutException(snapshot, timeout.asInstanceOf[FiniteDuration])
+        executionActor ! ExecutionActor.Cancel
+        throw NifflerTimeoutException(getExecutionSnapshot, timeout.asInstanceOf[FiniteDuration])
       case ex: Throwable =>
         throw ex
     } finally {
@@ -75,19 +72,45 @@ case class AsyncExecution[T] private (logic: Logic,
     executionActor ! ExecutionActor.Cancel
   }
 
-  val triggeredTime: Long = clock.millis()
+  def getExecutionSnapshot: ExecutionSnapshot = {
+    finalizedSnapshot.getOrElse({
+      import akka.pattern._
+      val cancelTimeout = Duration(3, TimeUnit.SECONDS)
+      Await.result(
+        (executionActor ? ExecutionActor.GetSnapshot)(Timeout(cancelTimeout)).mapTo[ExecutionSnapshot],
+        cancelTimeout
+      )
+    })
+  }
+
   Niffler.registerNewExecution(this)
   logic.checkMissingImpl(initialCache, forToken) match {
     case missingImpl if missingImpl.nonEmpty =>
       promise.tryFailure(
         NifflerInvocationException(
-          ExecutionSnapshot(logic, forToken, initialCache, Map.empty, triggeredTime, clock.millis()),
+          ExecutionSnapshot(
+            logic,
+            forToken,
+            initialCache,
+            Map.empty,
+            Some(clock.millis()),
+            ExecutionStatus.Failed,
+            clock.millis()
+          ),
           missingImpl
         )
       )
     case _ =>
       executionActor ! ExecutionActor.Invoke
-      promise.future.onComplete(_ => {
+      promise.future.onComplete(result => {
+        finalizedSnapshot = result match {
+          case Success(r) =>
+            Some(r.snapshot)
+          case Failure(ex: NifflerEvaluationException) =>
+            Some(ex.snapshot)
+          case _ =>
+            None // should never happen
+        }
         executionActor ! PoisonPill
         Niffler.reportExecutionComplete(this)
       })(ExecutionContext.global)

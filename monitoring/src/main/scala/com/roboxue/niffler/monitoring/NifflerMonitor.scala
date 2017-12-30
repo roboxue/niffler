@@ -2,7 +2,7 @@ package com.roboxue.niffler.monitoring
 
 import java.io.IOException
 
-import com.roboxue.niffler.{Logic, Niffler, Token}
+import com.roboxue.niffler.{Niffler, Token}
 import org.http4s.HttpService
 import org.http4s.server.blaze.BlazeBuilder
 import org.http4s.server.{Server, staticcontent}
@@ -77,13 +77,3 @@ case class SubServiceWrapper(serviceName: String,
                              serviceDetailsDescription: String,
                              servicePrefix: String,
                              service: HttpService)
-
-object NifflerMonitorTest {
-  def main(args: Array[String]): Unit = {
-    Logic(Iterable(NifflerMonitor.nifflerMonitorServicePortNumber.assign({
-      throw new Exception("hello world niffler")
-    }))).asyncRun(NifflerMonitor.nifflerMonitorServicePortNumber)
-    Niffler.combine(NifflerMonitor, ExecutionHistoryService).syncRun(NifflerMonitor.nifflerMonitorServicePortNumber)
-    Niffler.combine(NifflerMonitor, ExecutionHistoryService).syncRun(NifflerMonitor.nifflerMonitorStartServer)
-  }
-}

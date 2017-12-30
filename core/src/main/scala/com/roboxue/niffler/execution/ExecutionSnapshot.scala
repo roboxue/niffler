@@ -10,6 +10,7 @@ import scala.language.existentials
   * @param cache internal cache during execution
   * @param ongoing tokens still being evaluated
   * @param invocationTime evaluation started
+  * @param executionStatus the [[ExecutionStatus]]
   * @param asOfTime snapshot generation time
   * @author rxue
   * @since 12/19/17.
@@ -18,7 +19,8 @@ case class ExecutionSnapshot(logic: Logic,
                              tokenToEvaluate: Token[_],
                              cache: ExecutionCache,
                              ongoing: Map[Token[_], Long],
-                             invocationTime: Long,
+                             invocationTime: Option[Long],
+                             executionStatus: ExecutionStatus,
                              asOfTime: Long) {
 
   /**
@@ -36,7 +38,8 @@ case class ExecutionSnapshot(logic: Logic,
       }
     }
 
-    val (beforeInvocation, afterInvocation) = cache.storage.toSeq.partition(_._2.stats.completeTime < invocationTime)
+    val (beforeInvocation, afterInvocation) =
+      cache.storage.toSeq.partition(invocationTime.isEmpty || _._2.stats.completeTime < invocationTime.get)
     if (beforeInvocation.nonEmpty) {
       println("reused cache:")
       for ((key, value) <- beforeInvocation.sortBy(_._2.stats)) {

@@ -99,7 +99,9 @@ object Niffler extends NifflerSyntax {
     (getLiveExecutions, getPastExecutions, executionHistory.remainingCapacity())
   }
 
-  private[niffler] def getLiveExecutions: Seq[AsyncExecution[_]] = liveExecutions.toSeq
+  private[niffler] def getLiveExecutions: Seq[AsyncExecution[_]] = {
+    liveExecutions.toSeq
+  }
 
   private[niffler] def getPastExecutions: Seq[AsyncExecution[_]] = {
     import scala.collection.JavaConversions._

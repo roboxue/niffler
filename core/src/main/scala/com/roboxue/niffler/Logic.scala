@@ -25,6 +25,24 @@ class Logic private (val name: String,
     g
   }
 
+  def diverge(extraBindings: Iterable[Implementation[_]],
+              extraCachingPolicies: Map[Token[_], CachingPolicy] = Map.empty,
+              newName: String = s"logic-${UUID.randomUUID()}"): Logic = {
+    val updatedBindings = mutable.Map(bindings.toSeq: _*)
+    for (impl <- extraBindings) {
+      impl match {
+        case d: DirectImplementation[_] =>
+          updatedBindings(impl.token) = d
+        case i: IncrementalImplementation[_, _] =>
+          updatedBindings(impl.token) =
+            i.merge(updatedBindings.get(i.token).map(_.asInstanceOf[DirectImplementation[i.token.T0]]))
+      }
+    }
+    val updatedCachingPolicies = cachingPolicies ++ extraCachingPolicies
+    new Logic(newName, updatedBindings.toMap, updatedCachingPolicies)
+
+  }
+
   /**
     * Try execute the token in async mode
     *

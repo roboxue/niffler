@@ -1,7 +1,13 @@
 package com.roboxue.niffler.monitoring
 
-import com.roboxue.niffler.execution.NifflerExceptionBase
+import com.roboxue.niffler.execution.{
+  NifflerEvaluationException,
+  NifflerExceptionBase,
+  NifflerInvocationException,
+  NifflerTimeoutException
+}
 import com.roboxue.niffler.{AsyncExecution, Niffler, Token}
+import io.circe.syntax._
 import io.circe.{Encoder, Json}
 import org.http4s.HttpService
 
@@ -19,42 +25,69 @@ object ExecutionHistoryService extends Niffler with ServiceUtils {
   $$(nifflerExecutionHistoryServiceTitle.assign("Execution Service"))
 
   $$(nifflerExecutionHistoryService.dependsOn(nifflerExecutionHistoryServiceTitle) { (title) =>
-    import io.circe.syntax._
     import org.http4s.circe.jsonEncoder
     import org.http4s.dsl._
     import org.http4s.twirl._
     HttpService {
       case GET -> Root =>
         Ok(html.nifflerExecutionHistory(title))
-      case GET -> Root / "api" / "topology" / IntVar(executionId) =>
+      case GET -> Root / "api" / "execution" / IntVar(executionId) =>
         val (liveExecutions, pastExecutions, _) = Niffler.getHistory
         (liveExecutions ++ pastExecutions).find(_.executionId == executionId) match {
           case Some(execution) =>
+            val snapshot = execution.getExecutionSnapshot
+            val exceptionInfo = execution.promise.future.value match {
+              case Some(Failure(ex: NifflerEvaluationException)) =>
+                Json.obj("tokenWithException" -> ex.tokenWithException.uuid.asJson)
+              case Some(Failure(ex: NifflerInvocationException)) =>
+                Json.obj("tokensMissingImpl" -> ex.tokensMissingImpl.map(_.uuid).asJson)
+              case _ =>
+                Json.obj()
+            }
+
             val tokensByLayer: Seq[Set[Token[_]]] =
-              TopologyVertexRanker(execution.logic.topology, execution.forToken)
+              TopologyVertexRanker(snapshot.logic.topology, snapshot.tokenToEvaluate)
             jsonResponse(
               Ok(
-                Json.obj(
-                  "targetToken" -> tokenToJson(execution.forToken),
-                  "topology" -> (for (tokens <- tokensByLayer) yield {
-                    Json.obj(
-                      "tokens" -> tokens
-                        .map(t => {
-                          val prerequisitesUuid = execution.logic.getPredecessors(t).map(d => d.uuid)
-                          val successorsUuid = execution.logic.getSuccessors(t).map(d => d.uuid)
-                          val cachingPolicy = execution.logic.cachingPolicy(t)
-                          tokenToJson(t).deepMerge(
-                            Json.obj(
-                              "prerequisites" -> prerequisitesUuid.asJson,
-                              "successors" -> successorsUuid.asJson,
-                              "cachingPolicy" -> cachingPolicy.toString.asJson
-                            )
-                          )
-                        })
-                        .asJson
-                    )
-                  }).asJson
-                )
+                exceptionInfo
+                  .deepMerge(
+                    Json
+                      .obj(
+                        "targetToken" -> tokenToJson(snapshot.tokenToEvaluate),
+                        "topology" -> (for (tokens <- tokensByLayer) yield {
+                          val tokensJson = tokens
+                            .map(t => {
+                              val prerequisitesUuid = snapshot.logic.getPredecessors(t).map(d => d.uuid)
+                              val cachingPolicy = snapshot.logic.cachingPolicy(t)
+                              tokenToJson(t).deepMerge(
+                                Json.obj(
+                                  "prerequisites" -> prerequisitesUuid.asJson,
+                                  "cachingPolicy" -> cachingPolicy.toString.asJson
+                                )
+                              )
+                            })
+                            .asJson
+                          Json.obj("tokens" -> tokensJson)
+                        }).asJson,
+                        "ongoing" -> (for ((token, startTime) <- snapshot.ongoing) yield {
+                          Json.obj("uuid" -> token.uuid.asJson, "startedSince" -> startTime.asJson)
+                        }).asJson,
+                        "invocationTime" -> snapshot.invocationTime.asJson,
+                        "asOfTime" -> snapshot.asOfTime.asJson,
+                        "timeline" -> snapshot.cache.storage
+                          .map({
+                            case (token, cacheEntry) =>
+                              Json.obj(
+                                "uuid" -> token.uuid.asJson,
+                                "startTime" -> cacheEntry.stats.startTime.asJson,
+                                "completeTime" -> cacheEntry.stats.completeTime.asJson
+                              )
+
+                          })
+                          .asJson
+                      )
+                  )
+                  .spaces2
               )
             )
           case None =>
@@ -67,7 +100,7 @@ object ExecutionHistoryService extends Niffler with ServiceUtils {
             Json.obj(
               "liveExecutions" -> liveExecutions.asJson,
               "pastExecutions" -> pastExecutions.asJson,
-              "remainingCapacity" -> Json.fromInt(capacityRemaining)
+              "remainingCapacity" -> capacityRemaining.asJson
             )
           )
         )
@@ -103,12 +136,10 @@ object ExecutionHistoryService extends Niffler with ServiceUtils {
         "executionId" -> Json.fromInt(a.executionId),
         "token" -> Json.fromString(a.forToken.name),
         "tokenType" -> Json.fromString(a.forToken.returnTypeDescription),
-        "startAt" -> Json.fromLong(a.triggeredTime),
+        "startAt" -> a.getExecutionSnapshot.invocationTime.asJson,
         "state" -> Json.fromString(getExecutionState(a))
       )
       val extra = a.promise.future.value match {
-        case None =>
-          Json.Null
         case Some(Success(s)) =>
           Json.obj("finishAt" -> Json.fromLong(s.snapshot.asOfTime))
         case Some(Failure(ex: NifflerExceptionBase)) =>
@@ -117,11 +148,8 @@ object ExecutionHistoryService extends Niffler with ServiceUtils {
             "stacktrace" -> Json.fromString(ex.toString),
             "finishAt" -> Json.fromLong(ex.snapshot.asOfTime)
           )
-        case Some(Failure(otherEx)) =>
-          Json.obj(
-            "exceptionMessage" -> Json.fromString(otherEx.getMessage),
-            "stacktrace" -> Json.fromString(otherEx.toString)
-          )
+        case _ =>
+          Json.obj()
       }
       base.deepMerge(extra)
     }

@@ -54,7 +54,7 @@ lazy val monitoring = nifflerProject("monitoring", enablePublish = true)
     )
   )
 
-lazy val example = nifflerProject("example", enablePublish = false).dependsOn(core)
+lazy val example = nifflerProject("example", enablePublish = false).dependsOn(core, monitoring)
 
 resolvers ++= Seq(Resolver.sonatypeRepo("releases"), Resolver.sonatypeRepo("snapshots"))
 
