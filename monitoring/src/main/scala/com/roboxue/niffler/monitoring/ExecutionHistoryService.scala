@@ -4,8 +4,6 @@ import com.roboxue.niffler.execution.NifflerExceptionBase
 import com.roboxue.niffler.{AsyncExecution, Niffler, Token}
 import io.circe.{Encoder, Json}
 import org.http4s.HttpService
-import org.jgrapht.graph.AsSubgraph
-import org.jgrapht.traverse.TopologicalOrderIterator
 
 import scala.util.{Failure, Success}
 
@@ -21,15 +19,12 @@ object ExecutionHistoryService extends Niffler with ServiceUtils {
   $$(nifflerExecutionHistoryServiceTitle.assign("Execution Service"))
 
   $$(nifflerExecutionHistoryService.dependsOn(nifflerExecutionHistoryServiceTitle) { (title) =>
-    import org.http4s.dsl._
-    import org.http4s.twirl._ // render twirl templates (Html)
-    import org.http4s.circe.jsonEncoder // render circe json (Json)
     import io.circe.syntax._
+    import org.http4s.circe.jsonEncoder
+    import org.http4s.dsl._
+    import org.http4s.twirl._
     HttpService {
       case GET -> Root =>
-        Ok(html.nifflerExecutionHistory(title))
-      case GET -> Root / IntVar(executionId) =>
-        //
         Ok(html.nifflerExecutionHistory(title))
       case GET -> Root / "api" / "topology" / IntVar(executionId) =>
         val (liveExecutions, pastExecutions, _) = Niffler.getHistory
@@ -37,7 +32,7 @@ object ExecutionHistoryService extends Niffler with ServiceUtils {
           case Some(execution) =>
             val tokensWithDependencyDepth: Seq[(Set[Token[_]], Int)] =
               TopologyVertexRanker(execution.logic.topology, execution.forToken).zipWithIndex
-            jsonResponse(Ok((for ((tokens, depth) <- tokensWithDependencyDepth) yield {
+            jsonResponse(Ok(Json.obj("topology" -> (for ((tokens, depth) <- tokensWithDependencyDepth) yield {
               Json.obj(
                 "depth" -> Json.fromInt(depth),
                 "tokens" -> tokens
@@ -45,12 +40,13 @@ object ExecutionHistoryService extends Niffler with ServiceUtils {
                     val dependentsUuid = execution.logic.getDependents(t).map(d => d.uuid)
                     val cachingPolicy = execution.logic.cachingPolicy(t)
                     tokenToJson(t).deepMerge(
-                      Json.obj("dependents" -> dependentsUuid.asJson, "cachingPolicy" -> cachingPolicy.toString.asJson)
+                      Json
+                        .obj("dependents" -> dependentsUuid.asJson, "cachingPolicy" -> cachingPolicy.toString.asJson)
                     )
                   })
                   .asJson
               )
-            }).asJson))
+            }).asJson)))
           case None =>
             NotFound()
         }
