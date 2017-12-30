@@ -23,7 +23,7 @@ class ExecutionActor[T](promise: Promise[ExecutionResult[T]],
   val executionStartTime: mutable.Map[Token[_], Long] = mutable.Map.empty
   var invokeTime: Long = 0L
   var cancelled: Boolean = false
-  var unmetDependencies: Set[Token[_]] = Set.empty
+  var unmetPrerequisites: Set[Token[_]] = Set.empty
 
   override def receive: Receive = {
     case ExecutionActor.Cancel =>
@@ -36,10 +36,10 @@ class ExecutionActor[T](promise: Promise[ExecutionResult[T]],
         mutableCache.invalidateTtlCache(invokeTime)
         // calculate the tokens that need to be recalculated during this round of invocation
         val ec = mutableCache.omit(Set(forToken))
-        unmetDependencies = logic.getUnmetDependencies(forToken, ec)
-        // trigger dependency
-        if (unmetDependencies.nonEmpty) {
-          tryTriggerTokens(unmetDependencies, ec)
+        unmetPrerequisites = logic.getUnmetPrerequisites(forToken, ec)
+        // trigger eval of prerequisites
+        if (unmetPrerequisites.nonEmpty) {
+          tryTriggerTokens(unmetPrerequisites, ec)
         } else {
           trigger(forToken)
         }
@@ -63,7 +63,7 @@ class ExecutionActor[T](promise: Promise[ExecutionResult[T]],
             if (token == forToken) {
               announceSuccess(result.asInstanceOf[T], now)
             } else {
-              tryTriggerTokens(logic.getParents(token).intersect(unmetDependencies), mutableCache.fork)
+              tryTriggerTokens(logic.getSuccessors(token).intersect(unmetPrerequisites), mutableCache.fork)
             }
         }
       }
@@ -85,7 +85,7 @@ class ExecutionActor[T](promise: Promise[ExecutionResult[T]],
   }
 
   def tryTriggerTokens(tokens: Set[Token[_]], ec: ExecutionCache): Unit = {
-    for (k <- tokens if logic.allDependenciesMet(k, ec)) {
+    for (k <- tokens if logic.allPrerequisitesMet(k, ec)) {
       trigger(k)
     }
   }

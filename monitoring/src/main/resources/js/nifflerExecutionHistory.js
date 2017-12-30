@@ -13,26 +13,3 @@ requirejs(['vue!executionHistoryService', 'vue!historyExecution', 'vue!logicTopo
     el: '#app',
   })
 })
-
-function errorHandling (error, vm, occasion) {
-  if (error.response) {
-    vm.errorMessage = {
-      message: error.response.data,
-      status: error.response.status,
-      occasion: occasion
-    }
-  } else if (error.request) {
-    vm.errorMessage = {
-      message: 'no response received',
-      status: 'n/a',
-      occasion: occasion
-    }
-  } else {
-    vm.errorMessage = {
-      message: error.message,
-      status: 'n/a',
-      occasion: occasion
-    }
-  }
-  vm.alertVisible = true
-}

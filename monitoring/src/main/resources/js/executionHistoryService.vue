@@ -1,40 +1,39 @@
 <template>
     <div class="container-fluid">
-        <div class="jumbotron">
-            <div class="row">
-                <div class="col-md-6">
-                    <h1 class="display-3">Execution History</h1>
-                    <h4 v-if="loading">Loading...<br>
-                        This tab will display the live executions and a portion of past execution history.
-                    </h4>
-                    <template v-else>
-                        <h3>{{liveExecutions.length}} Live executions</h3>
-                        <h5 v-if="liveExecutions.length === 0">empty</h5>
-                        <history-execution
-                                v-for="(exe) in liveExecutions"
-                                v-on:view="viewExecution"
-                                :model="exe"
-                                :key="exe.executionId"
-                        >
-                        </history-execution>
-                        <h3>{{pastExecutions.length}} Past executions</h3>
-                        <h5>Storage capacity: {{capacity}}</h5>
-                        <h5 v-if="pastExecutions.length === 0">empty</h5>
-                        <history-execution
-                                v-for="(exe) in pastExecutions"
-                                v-on:view="viewExecution"
-                                :model="exe"
-                                :key="exe.executionId"
-                        >
-                        </history-execution>
-                    </template>
-                </div>
-                <div class="col-md-6">
-                    <h1 class="display-3">Execution Details</h1>
-                    <logic-topology v-if="topology.length > 0"
-                                    :model="topology"
-                    ></logic-topology>
-                </div>
+        <div class="row">
+            <div class="col-md-6">
+                <h1 class="display-3">Execution History</h1>
+                <h4 v-if="loading">Loading...<br>
+                    This tab will display the live executions and a portion of past execution history.
+                </h4>
+                <template v-else>
+                    <h3>{{liveExecutions.length}} Live executions</h3>
+                    <h5 v-if="liveExecutions.length === 0">empty</h5>
+                    <history-execution
+                            v-for="(exe) in liveExecutions"
+                            v-on:view="viewExecution"
+                            :model="exe"
+                            :key="exe.executionId"
+                    >
+                    </history-execution>
+                    <h3>{{pastExecutions.length}} Past executions</h3>
+                    <h5>Storage capacity: {{capacity}}</h5>
+                    <h5 v-if="pastExecutions.length === 0">empty</h5>
+                    <history-execution
+                            v-for="(exe) in pastExecutions"
+                            v-on:view="viewExecution"
+                            :model="exe"
+                            :key="exe.executionId"
+                    >
+                    </history-execution>
+                </template>
+            </div>
+            <div class="col-md-6">
+                <h1 class="display-3">Execution Details</h1>
+                <logic-topology v-if="activeExecution"
+                                :topology="activeExecution.topology"
+                                :targetToken="activeExecution.targetToken"
+                ></logic-topology>
             </div>
         </div>
     </div>
@@ -46,7 +45,7 @@
     data: function () {
       return {
         loading: false,
-        topology: [],
+        activeExecution: undefined,
         liveExecutions: [],
         pastExecutions: [],
         remainingCapacity: 1,
@@ -83,10 +82,13 @@
         let vm = this
         axios.get(window.location.pathname + `/api/topology/${executionId}`)
           .then(function (response) {
-            vm.topology = response.data.topology
+            vm.activeExecution = {
+              topology: response.data.topology,
+              targetToken: response.data.targetToken
+            }
           })
           .catch(function (error) {
-            vm.topology = []
+            vm.activeExecution = undefined
             errorHandling(error, vm, 'get execution topology')
           })
       }

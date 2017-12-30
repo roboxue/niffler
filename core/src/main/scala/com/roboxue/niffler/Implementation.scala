@@ -5,8 +5,9 @@ import com.roboxue.niffler.execution.Append
 /**
   * Implementation is a typed binding of [[Token]] and [[TokenEvaluation]]
   * Don't create this class directly.
-  * Use helper methods in [[Token]] like [[Token.dependsOn]], [[Token.assign]], [[Token.amendWith]],
-  * or in [[Niffler]] like [[Niffler.constant]], [[Niffler.evalToken]] or [[Niffler.evalTokens]]
+  * Use helper methods in [[Token]] like [[Token.assign]],
+  * [[Token.amendWith]], [[Token.amendWithToken]], [[Token.dependsOn]], [[Token.dependsOnToken]]
+  * or in [[Niffler]] like [[Niffler.constant]] or [[Niffler.evalTokens]]
   *
   * @author rxue
   * @since 12/15/17.
@@ -22,23 +23,23 @@ sealed trait Implementation[T] {
     * the token that needs to be evaluated before this can be evaluated
     * @return
     */
-  def dependency: Set[Token[_]]
+  def prerequisites: Set[Token[_]]
 }
 
 case class DirectImplementation[T] private[niffler] (token: Token[T], eval: TokenEvaluation[T])
     extends Implementation[T] {
-  override def dependency: Set[Token[_]] = eval.dependency
+  override def prerequisites: Set[Token[_]] = eval.prerequisites
 }
 
 case class IncrementalImplementation[T, R] private[niffler] (token: Token[T],
                                                              eval: TokenEvaluation[R],
                                                              amendable: Append.Value[T, R])
     extends Implementation[T] {
-  override def dependency: Set[Token[_]] = eval.dependency
+  override def prerequisites: Set[Token[_]] = eval.prerequisites
 
   def merge(existingImpl: Option[DirectImplementation[T]]): DirectImplementation[T] = {
-    val newDependency: Set[Token[_]] = dependency ++ existingImpl.map(_.dependency).getOrElse(Set.empty)
-    DirectImplementation(token, TokenEvaluation(newDependency, (cache) => {
+    val mergedPrerequisites: Set[Token[_]] = prerequisites ++ existingImpl.map(_.prerequisites).getOrElse(Set.empty)
+    DirectImplementation(token, TokenEvaluation(mergedPrerequisites, (cache) => {
       val existingValue: T = existingImpl.map(_.eval(cache)).getOrElse(cache.get(token).getOrElse(amendable.empty))
       val newValue: R = eval(cache)
       amendable.appendValue(existingValue, newValue)

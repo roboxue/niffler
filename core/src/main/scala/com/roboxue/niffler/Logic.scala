@@ -20,7 +20,7 @@ class Logic private (val name: String,
   private[niffler] val topology: DirectedAcyclicGraph[Token[_], DefaultEdge] = {
     val g = new DirectedAcyclicGraph[Token[_], DefaultEdge](classOf[DefaultEdge])
     for ((token, impl) <- bindings) {
-      Graphs.addIncomingEdges(g, token, impl.dependency)
+      Graphs.addIncomingEdges(g, token, impl.prerequisites)
     }
     g
   }
@@ -57,23 +57,23 @@ class Logic private (val name: String,
     asyncRun(token, extraImpl, cache).await(timeout)
   }
 
-  def getDependents(token: Token[_]): Set[Token[_]] = {
+  def getPredecessors(token: Token[_]): Set[Token[_]] = {
     Graphs.predecessorListOf(topology, token).toSet
   }
 
-  def getParents(token: Token[_]): Set[Token[_]] = {
+  def getSuccessors(token: Token[_]): Set[Token[_]] = {
     Graphs.successorListOf(topology, token).toSet
   }
 
   /**
-    * A breadth first search for unmet dependencies in the dependency chain of the given token
+    * A breadth first search for unmet prerequisites in the dependency chain of the given token
     * If a token exists in the cache, its predecessor will not be checked since there is no need to evaluate them
     *
     * @param token the token to be evaluated
     * @param executionCache cache containing tokens that doesn't need evaluation
     * @return
     */
-  def getUnmetDependencies(token: Token[_], executionCache: ExecutionCache): Set[Token[_]] = {
+  def getUnmetPrerequisites(token: Token[_], executionCache: ExecutionCache): Set[Token[_]] = {
     // the token to be evaluated will automatically become "unmet"
     var unmet = Set[Token[_]](token)
     var tokensToInspect: Set[Token[_]] = Set(token)
@@ -83,7 +83,7 @@ class Logic private (val name: String,
         // add every involved token who is missing from cache
         unmet += k
         // inspect this token's predecessors
-        nextInspect ++= getDependents(k)
+        nextInspect ++= getPredecessors(k)
       }
       tokensToInspect = nextInspect.toSet
     } while (tokensToInspect.nonEmpty)
@@ -98,11 +98,11 @@ class Logic private (val name: String,
   def cachingPolicy(token: Token[_]): CachingPolicy = cachingPolicies.getOrElse(token, CachingPolicy.Forever)
 
   def checkMissingImpl(cache: ExecutionCache, forToken: Token[_]): Set[Token[_]] = {
-    getUnmetDependencies(forToken, cache).diff(bindings.keySet)
+    getUnmetPrerequisites(forToken, cache).diff(bindings.keySet)
   }
 
-  private[niffler] def allDependenciesMet(token: Token[_], executionCache: ExecutionCache): Boolean = {
-    getDependents(token).forall(executionCache.hit)
+  private[niffler] def allPrerequisitesMet(token: Token[_], executionCache: ExecutionCache): Boolean = {
+    getPredecessors(token).forall(executionCache.hit)
   }
 
 }

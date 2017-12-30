@@ -30,23 +30,33 @@ object ExecutionHistoryService extends Niffler with ServiceUtils {
         val (liveExecutions, pastExecutions, _) = Niffler.getHistory
         (liveExecutions ++ pastExecutions).find(_.executionId == executionId) match {
           case Some(execution) =>
-            val tokensWithDependencyDepth: Seq[(Set[Token[_]], Int)] =
-              TopologyVertexRanker(execution.logic.topology, execution.forToken).zipWithIndex
-            jsonResponse(Ok(Json.obj("topology" -> (for ((tokens, depth) <- tokensWithDependencyDepth) yield {
-              Json.obj(
-                "depth" -> Json.fromInt(depth),
-                "tokens" -> tokens
-                  .map(t => {
-                    val dependentsUuid = execution.logic.getDependents(t).map(d => d.uuid)
-                    val cachingPolicy = execution.logic.cachingPolicy(t)
-                    tokenToJson(t).deepMerge(
-                      Json
-                        .obj("dependents" -> dependentsUuid.asJson, "cachingPolicy" -> cachingPolicy.toString.asJson)
+            val tokensByLayer: Seq[Set[Token[_]]] =
+              TopologyVertexRanker(execution.logic.topology, execution.forToken)
+            jsonResponse(
+              Ok(
+                Json.obj(
+                  "targetToken" -> tokenToJson(execution.forToken),
+                  "topology" -> (for (tokens <- tokensByLayer) yield {
+                    Json.obj(
+                      "tokens" -> tokens
+                        .map(t => {
+                          val prerequisitesUuid = execution.logic.getPredecessors(t).map(d => d.uuid)
+                          val successorsUuid = execution.logic.getSuccessors(t).map(d => d.uuid)
+                          val cachingPolicy = execution.logic.cachingPolicy(t)
+                          tokenToJson(t).deepMerge(
+                            Json.obj(
+                              "prerequisites" -> prerequisitesUuid.asJson,
+                              "successors" -> successorsUuid.asJson,
+                              "cachingPolicy" -> cachingPolicy.toString.asJson
+                            )
+                          )
+                        })
+                        .asJson
                     )
-                  })
-                  .asJson
+                  }).asJson
+                )
               )
-            }).asJson)))
+            )
           case None =>
             NotFound()
         }

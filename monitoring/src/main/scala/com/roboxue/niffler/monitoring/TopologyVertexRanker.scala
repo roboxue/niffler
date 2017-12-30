@@ -16,19 +16,21 @@ object TopologyVertexRanker {
     if (!graph.containsVertex(startFrom)) {
       throw new IllegalArgumentException(s"vertex $startFrom doesn't belong to graph $graph")
     }
-    val visited = mutable.Set.empty[V]
-    val storage = ListBuffer.empty[Set[V]]
-    var toVisit = Set(startFrom)
-    var i = 1
+    val visited = mutable.Set(startFrom)
+    val storage = ListBuffer(Set(startFrom))
+    var toVisit = Set(Graphs.predecessorListOf(graph, startFrom).toSeq: _*)
     while (toVisit.nonEmpty) {
       val visitNext = mutable.Set.empty[V]
-      storage += toVisit
+      val cleared = ListBuffer.empty[V]
       for (v <- toVisit) {
-        visited += v
+        if (visited.containsAll(Graphs.successorListOf(graph, v))) {
+          cleared += v
+        }
         visitNext ++= Graphs.predecessorListOf(graph, v)
       }
+      visited ++= cleared
+      storage += cleared.toSet
       toVisit = visitNext.diff(visited).toSet
-      i += 1
     }
     storage.toList
   }
