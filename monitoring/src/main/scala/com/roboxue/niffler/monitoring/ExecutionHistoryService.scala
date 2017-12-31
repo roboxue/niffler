@@ -1,11 +1,6 @@
 package com.roboxue.niffler.monitoring
 
-import com.roboxue.niffler.execution.{
-  NifflerEvaluationException,
-  NifflerExceptionBase,
-  NifflerInvocationException,
-  NifflerTimeoutException
-}
+import com.roboxue.niffler.execution._
 import com.roboxue.niffler.{AsyncExecution, Niffler, Token}
 import io.circe.syntax._
 import io.circe.{Encoder, Json}
@@ -25,9 +20,17 @@ object ExecutionHistoryService extends Niffler with ServiceUtils {
   $$(nifflerExecutionHistoryServiceTitle.assign("Execution Service"))
 
   $$(nifflerExecutionHistoryService.dependsOn(nifflerExecutionHistoryServiceTitle) { (title) =>
+    import fs2.time.awakeEvery
+    import fs2.{Scheduler, Sink, Strategy, Stream, Task}
     import org.http4s.circe.jsonEncoder
     import org.http4s.dsl._
+    import org.http4s.server.websocket.WS
     import org.http4s.twirl._
+    import org.http4s.websocket.WebsocketBits._
+
+    import scala.concurrent.duration._
+    implicit val scheduler: Scheduler = Scheduler.fromFixedDaemonPool(2)
+    implicit val strategy: Strategy = Strategy.fromFixedDaemonPool(8, threadName = "worker")
     HttpService {
       case GET -> Root =>
         Ok(html.nifflerExecutionHistory(title))
@@ -35,61 +38,7 @@ object ExecutionHistoryService extends Niffler with ServiceUtils {
         val (liveExecutions, pastExecutions, _) = Niffler.getHistory
         (liveExecutions ++ pastExecutions).find(_.executionId == executionId) match {
           case Some(execution) =>
-            val snapshot = execution.getExecutionSnapshot
-            val exceptionInfo = execution.promise.future.value match {
-              case Some(Failure(ex: NifflerEvaluationException)) =>
-                Json.obj("tokenWithException" -> ex.tokenWithException.uuid.asJson)
-              case Some(Failure(ex: NifflerInvocationException)) =>
-                Json.obj("tokensMissingImpl" -> ex.tokensMissingImpl.map(_.uuid).asJson)
-              case _ =>
-                Json.obj()
-            }
-
-            val tokensByLayer: Seq[Set[Token[_]]] =
-              TopologyVertexRanker(snapshot.logic.topology, snapshot.tokenToEvaluate)
-            jsonResponse(
-              Ok(
-                exceptionInfo
-                  .deepMerge(
-                    Json
-                      .obj(
-                        "targetToken" -> tokenToJson(snapshot.tokenToEvaluate),
-                        "topology" -> (for (tokens <- tokensByLayer) yield {
-                          val tokensJson = tokens
-                            .map(t => {
-                              val prerequisitesUuid = snapshot.logic.getPredecessors(t).map(d => d.uuid)
-                              val cachingPolicy = snapshot.logic.cachingPolicy(t)
-                              tokenToJson(t).deepMerge(
-                                Json.obj(
-                                  "prerequisites" -> prerequisitesUuid.asJson,
-                                  "cachingPolicy" -> cachingPolicy.toString.asJson
-                                )
-                              )
-                            })
-                            .asJson
-                          Json.obj("tokens" -> tokensJson)
-                        }).asJson,
-                        "ongoing" -> (for ((token, startTime) <- snapshot.ongoing) yield {
-                          Json.obj("uuid" -> token.uuid.asJson, "startedSince" -> startTime.asJson)
-                        }).asJson,
-                        "invocationTime" -> snapshot.invocationTime.asJson,
-                        "asOfTime" -> snapshot.asOfTime.asJson,
-                        "timeline" -> snapshot.cache.storage
-                          .map({
-                            case (token, cacheEntry) =>
-                              Json.obj(
-                                "uuid" -> token.uuid.asJson,
-                                "startTime" -> cacheEntry.stats.startTime.asJson,
-                                "completeTime" -> cacheEntry.stats.completeTime.asJson
-                              )
-
-                          })
-                          .asJson
-                      )
-                  )
-                  .spaces2
-              )
-            )
+            jsonResponse(Ok(asyncExecutionDetailsToJson(execution).spaces2))
           case None =>
             NotFound()
         }
@@ -99,11 +48,27 @@ object ExecutionHistoryService extends Niffler with ServiceUtils {
           Ok(
             Json.obj(
               "liveExecutions" -> liveExecutions.asJson,
-              "pastExecutions" -> pastExecutions.asJson,
+              "pastExecutions" -> pastExecutions.reverse.asJson,
               "remainingCapacity" -> capacityRemaining.asJson
             )
           )
         )
+      case GET -> Root / "api" / "executionStream" / IntVar(executionId) =>
+        val (liveExecutions, pastExecutions, _) = Niffler.getHistory
+        (liveExecutions ++ pastExecutions).find(_.executionId == executionId) match {
+          case Some(execution) =>
+            val toClient: Stream[Task, WebSocketFrame] = Stream.emit(
+              Text(asyncExecutionDetailsToJson(execution).noSpaces)
+            ) ++ awakeEvery[Task](1.seconds).map { d =>
+              Text(asyncExecutionDetailsToJson(execution).noSpaces)
+            }.takeWhile(_ => {
+              !execution.promise.isCompleted
+            })
+            val discardClientMessages: Sink[Task, WebSocketFrame] = _.evalMap[Task, Task, Unit](_ => Task.delay(Unit))
+            WS(toClient, discardClientMessages)
+          case None =>
+            NotFound()
+        }
       case POST -> Root / "api" / "storageCapacity" / IntVar(capacity) if capacity > 0 =>
         Niffler.updateExecutionHistoryCapacity(capacity)
         Ok()
@@ -137,16 +102,35 @@ object ExecutionHistoryService extends Niffler with ServiceUtils {
         "token" -> Json.fromString(a.forToken.name),
         "tokenType" -> Json.fromString(a.forToken.returnTypeDescription),
         "startAt" -> a.getExecutionSnapshot.invocationTime.asJson,
-        "state" -> Json.fromString(getExecutionState(a))
+        "state" -> Json.fromString(a.promise.future.value match {
+          case None             => "live"
+          case Some(Success(_)) => "success"
+          case Some(Failure(_)) => "failure"
+        })
       )
       val extra = a.promise.future.value match {
         case Some(Success(s)) =>
           Json.obj("finishAt" -> Json.fromLong(s.snapshot.asOfTime))
-        case Some(Failure(ex: NifflerExceptionBase)) =>
+        case Some(Failure(ex: NifflerEvaluationException)) =>
           Json.obj(
             "exceptionMessage" -> Json.fromString(ex.getMessage),
             "stacktrace" -> Json.fromString(ex.toString),
-            "finishAt" -> Json.fromLong(ex.snapshot.asOfTime)
+            "finishAt" -> Json.fromLong(ex.snapshot.asOfTime),
+            "tokenWithException" -> ex.tokenWithException.uuid.asJson
+          )
+        case Some(Failure(ex: NifflerInvocationException)) =>
+          Json.obj(
+            "exceptionMessage" -> Json.fromString(ex.getMessage),
+            "stacktrace" -> Json.fromString(ex.toString),
+            "finishAt" -> Json.fromLong(ex.snapshot.asOfTime),
+            "tokensMissingImpl" -> ex.tokensMissingImpl.map(_.uuid).asJson
+          )
+        case Some(Failure(ex: NifflerTimeoutException)) =>
+          Json.obj(
+            "exceptionMessage" -> Json.fromString(ex.getMessage),
+            "stacktrace" -> Json.fromString(ex.toString),
+            "finishAt" -> Json.fromLong(ex.snapshot.asOfTime),
+            "timeout" -> ex.timeout.toMillis.asJson
           )
         case _ =>
           Json.obj()
@@ -155,11 +139,49 @@ object ExecutionHistoryService extends Niffler with ServiceUtils {
     }
   }
 
-  private def getExecutionState(a: AsyncExecution[_]): String = {
-    a.promise.future.value match {
-      case None             => "live"
-      case Some(Success(_)) => "success"
-      case Some(Failure(_)) => "failure"
+  private def asyncExecutionDetailsToJson: Encoder[AsyncExecution[_]] = new Encoder[AsyncExecution[_]] {
+    override def apply(a: AsyncExecution[_]): Json = {
+      val snapshot = a.getExecutionSnapshot
+      val tokensByLayer: Seq[Set[Token[_]]] = TopologyVertexRanker(snapshot.logic.topology, snapshot.tokenToEvaluate)
+      asyncExecutionToJson(a).deepMerge({
+        val ongoing = for ((token, startTime) <- snapshot.ongoing) yield {
+          Json.obj("uuid" -> token.uuid.asJson, "status" -> "running".asJson, "startTime" -> startTime.asJson)
+        }
+        val finished = snapshot.cache.storage.map({
+          case (token, cacheEntry) =>
+            cacheEntry.entryType match {
+              case ExecutionCacheEntryType.TokenEvaluationStats(start, end) =>
+                Json.obj(
+                  "uuid" -> token.uuid.asJson,
+                  "status" -> "completed".asJson,
+                  "startTime" -> start.asJson,
+                  "completeTime" -> end.asJson
+                )
+              case ExecutionCacheEntryType.Injected =>
+                Json.obj("uuid" -> token.uuid.asJson, "status" -> "injected".asJson)
+              case ExecutionCacheEntryType.Inherited =>
+                Json.obj("uuid" -> token.uuid.asJson, "status" -> "inherited".asJson)
+            }
+        })
+        Json.obj(
+          "targetToken" -> tokenToJson(snapshot.tokenToEvaluate),
+          "topology" -> (for (tokens <- tokensByLayer) yield {
+            val tokensJson = tokens
+              .map(t => {
+                val prerequisitesUuid = snapshot.logic.getPredecessors(t).map(d => d.uuid)
+                val cachingPolicy = snapshot.logic.cachingPolicy(t)
+                tokenToJson(t).deepMerge(
+                  Json
+                    .obj("prerequisites" -> prerequisitesUuid.asJson, "cachingPolicy" -> cachingPolicy.toString.asJson)
+                )
+              })
+              .asJson
+            Json.obj("tokens" -> tokensJson)
+          }).asJson,
+          "asOfTime" -> snapshot.asOfTime.asJson,
+          "timeline" -> (ongoing ++ finished).asJson
+        )
+      })
     }
   }
 }

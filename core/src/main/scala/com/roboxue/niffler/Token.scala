@@ -3,6 +3,7 @@ package com.roboxue.niffler
 import java.util.UUID
 
 import com.roboxue.niffler.syntax.TokenSyntax
+
 import scala.reflect.runtime.universe.TypeTag
 
 /**

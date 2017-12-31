@@ -1,7 +1,7 @@
 package com.roboxue.niffler.examples
 
-import com.roboxue.niffler.{Logic, Niffler, Token}
 import com.roboxue.niffler.monitoring.{ExecutionHistoryService, NifflerMonitor}
+import com.roboxue.niffler.{Logic, Niffler, Token}
 
 /**
   * @author rxue
@@ -33,10 +33,18 @@ object NifflerMonitorDemo {
     val t4 = Token[Int]("t4")
     val t5 = Token[Int]("t5")
     val logic3 = Logic(
-      Iterable(t1.assign({ Thread.sleep(5000); "good morning" }), t2.assign({ Thread.sleep(2000); 2 }), t3.assign({
+      Iterable(t1.assign({ Thread.sleep(10000); "good morning" }), t2.assign({ Thread.sleep(4000); 2 }), t3.assign({
         Thread.sleep(20000); 3
       }), t4.dependsOn(t1, t2) { _.length + _ }, t5.dependsOn(t4, t3) { _ + _ })
     )
     logic3.asyncRun(t5)
+
+    // missing implementation for a token will yield a quick runtime exception
+    val logic4 = Logic(
+      Iterable(t1.assign({ Thread.sleep(10000); "good morning" }), t2.assign({ Thread.sleep(4000); 2 }), t3.assign({
+        Thread.sleep(20000); 3
+      }), t5.dependsOn(t4, t3) { _ + _ })
+    )
+    logic4.asyncRun(t5)
   }
 }

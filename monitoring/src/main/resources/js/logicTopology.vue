@@ -124,13 +124,9 @@
         })
         this.model.timeline.forEach((token) => {
           if (lookup.hasOwnProperty(token.uuid)) {
+            lookup[token.uuid].status = token.status
             lookup[token.uuid].startTime = token.startTime
             lookup[token.uuid].completeTime = token.completeTime
-          }
-        })
-        this.model.ongoing.forEach((token) => {
-          if (lookup.hasOwnProperty(token.uuid)) {
-            lookup[token.uuid].startTime = token.startedSince
           }
         })
         this.model.topology.forEach((layer) => {
@@ -145,12 +141,8 @@
         Object.values(lookup).forEach(token => {
           if (this.model.tokenWithException === token.uuid || (this.model.tokensMissingImpl || []).includes(token.uuid)) {
             token.executionStatus = 'failed'
-          } else if (token.hasOwnProperty('startTime')) {
-            if (token.hasOwnProperty('completeTime')) {
-              token.executionStatus = 'completed'
-            } else {
-              token.executionStatus = 'running'
-            }
+          } else if (token.hasOwnProperty('status')) {
+            token.executionStatus = token.status
           } else {
             token.executionStatus = 'blocked'
           }
@@ -194,8 +186,8 @@
             return `${token.completeTime - token.startTime} ms`
           case 'running':
             return `since ${token.startTime}`
-          case 'blocked':
-            return `unstarted`
+          default:
+            return token.executionStatus
         }
       },
       colorForTokenDependencyStatus: function (tokenUuid) {
@@ -218,6 +210,8 @@
             return 'success'
           case 'running':
             return 'warning'
+          case 'inherited':
+          case 'injected':
           case 'blocked':
             return 'secondary'
         }
@@ -228,7 +222,7 @@
       }
     },
     watch: {
-      'model': function (val, oldVal) {
+      'model.executionId': function (val, oldVal) {
         this.activeToken = undefined
         this.svg.updateBBox()
       }

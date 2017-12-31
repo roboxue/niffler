@@ -3,10 +3,11 @@
         <a href="#"
            @click.prevent="viewExecution"
            class="list-group-item list-group-item-action flex-column align-items-start"
-           :class="['list-group-item-' + colorForState(model.state)]"
         >
             <div class="d-flex w-100 justify-content-between">
-                <h5 class="mb-1">#{{model.executionId}} - {{model.state}}</h5>
+                <h5 class="mb-1">
+                    <span class="badge" :class="['badge-' + colorForState(model.state)]">&nbsp;&nbsp;</span>
+                    #{{model.executionId}} - {{model.state}}</h5>
                 <abbr :title="new Date(model.startAt).toISOString()">{{model.startAt}}</abbr>
             </div>
             <dl class="row">

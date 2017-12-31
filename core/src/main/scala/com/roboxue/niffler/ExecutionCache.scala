@@ -1,6 +1,7 @@
 package com.roboxue.niffler
 
-import com.roboxue.niffler.execution.{ExecutionCacheEntry, TokenEvaluationStats}
+import com.roboxue.niffler.execution.ExecutionCacheEntryType.TokenEvaluationStats
+import com.roboxue.niffler.execution.{ExecutionCacheEntry, ExecutionCacheEntryType}
 
 import scala.collection.mutable
 
@@ -18,7 +19,7 @@ case class ExecutionCache(storage: Map[Token[_], ExecutionCacheEntry[_]]) {
   }
 
   def mutableFork: MutableExecutionCache = {
-    new MutableExecutionCache(storage)
+    new MutableExecutionCache(storage.mapValues(_.toInherited))
   }
 
   def hit(token: Token[_]): Boolean = {
@@ -52,7 +53,7 @@ object ExecutionCache {
     * @return
     */
   private[niffler] def fromValue(map: Map[Token[_], Any]): ExecutionCache = {
-    ExecutionCache(map.mapValues(v => ExecutionCacheEntry(v)))
+    ExecutionCache(map.mapValues(v => ExecutionCacheEntry.inject(v)))
   }
 }
 
@@ -72,7 +73,12 @@ class MutableExecutionCache(initialState: Map[Token[_], ExecutionCacheEntry[_]])
   def invalidateTtlCache(now: Long): Unit = {
     storage.retain({
       case (_, value) =>
-        value.ttl.isEmpty || now < value.stats.completeTime + value.ttl.get
+        value.entryType match {
+          case ExecutionCacheEntryType.Injected | ExecutionCacheEntryType.Inherited =>
+            true
+          case ExecutionCacheEntryType.TokenEvaluationStats(_, completeTime) =>
+            value.ttl.isEmpty || now < completeTime + value.ttl.get
+        }
     })
   }
 

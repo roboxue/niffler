@@ -5,7 +5,6 @@ import com.google.common.collect.EvictingQueue
 import com.roboxue.niffler.execution.CachingPolicy
 import com.roboxue.niffler.syntax.NifflerSyntax
 import monix.eval.Coeval
-import monix.execution.atomic.AtomicInt
 
 import scala.collection.mutable
 import scala.collection.mutable.ListBuffer

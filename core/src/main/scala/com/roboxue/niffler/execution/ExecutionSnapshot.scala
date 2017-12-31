@@ -1,5 +1,6 @@
 package com.roboxue.niffler.execution
 
+import com.roboxue.niffler.execution.ExecutionCacheEntryType._
 import com.roboxue.niffler.{ExecutionCache, Logic, Token}
 
 import scala.language.existentials
@@ -27,28 +28,36 @@ case class ExecutionSnapshot(logic: Logic,
     * Utility function during debuging
     */
   def printTimeLine(): Unit = {
-    implicit object TokenEvaluationStatsOrdering extends Ordering[TokenEvaluationStats] {
-      override def compare(x: TokenEvaluationStats, y: TokenEvaluationStats): Int = {
-        val start = x.startTime compare y.startTime
-        if (start == 0) {
-          x.completeTime compare y.completeTime
-        } else {
-          start
+    implicit object ExecutionCacheEntryTypeOrdering extends Ordering[ExecutionCacheEntryType] {
+      override def compare(x: ExecutionCacheEntryType, y: ExecutionCacheEntryType): Int = {
+        (x, y) match {
+          case (Inherited, Inherited) | (Injected, Injected) =>
+            0
+          case (Inherited, Injected) | (Injected, TokenEvaluationStats(_, _)) =>
+            -1
+          case (Injected, Inherited) | (TokenEvaluationStats(_, _), Injected) =>
+            1
+          case (l: TokenEvaluationStats, r: TokenEvaluationStats) if l.startTime == r.startTime =>
+            l.completeTime compare l.completeTime
+          case (l: TokenEvaluationStats, r: TokenEvaluationStats) =>
+            l.startTime compare r.startTime
         }
       }
     }
 
     val (beforeInvocation, afterInvocation) =
-      cache.storage.toSeq.partition(invocationTime.isEmpty || _._2.stats.completeTime < invocationTime.get)
+      cache.storage.toSeq.partition(pair => {
+        invocationTime.isEmpty || pair._2.entryType == Inherited || pair._2.entryType == Injected
+      })
     if (beforeInvocation.nonEmpty) {
       println("reused cache:")
-      for ((key, value) <- beforeInvocation.sortBy(_._2.stats)) {
+      for ((key, value) <- beforeInvocation.sortBy(_._2.entryType)) {
         printTokenValuePair(key, value)
       }
     }
     if (afterInvocation.nonEmpty) {
       println("evaluation:")
-      for ((key, value) <- afterInvocation.sortBy(_._2.stats)) {
+      for ((key, value) <- afterInvocation.sortBy(_._2.entryType)) {
         printTokenValuePair(key, value)
       }
     }
@@ -70,10 +79,10 @@ case class ExecutionSnapshot(logic: Logic,
 
   private def printTokenValuePair(token: Token[_], result: ExecutionCacheEntry[_]): Unit = {
     printToken(token)
-    print(s"${result.stats.startTime} -> ${result.stats.completeTime}")
+    print(result.entryType)
     result.ttl match {
-      case Some(ttl) =>
-        println(s" ttl: ${result.stats.completeTime + ttl}")
+      case Some(ttl) if result.entryType.isInstanceOf[TokenEvaluationStats] =>
+        println(s" ttl: ${result.entryType.asInstanceOf[TokenEvaluationStats].completeTime + ttl}")
       case None =>
         println()
     }

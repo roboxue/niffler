@@ -9,7 +9,7 @@ import com.roboxue.niffler.execution._
 import monix.execution.atomic.AtomicInt
 
 import scala.concurrent.duration.{Duration, FiniteDuration}
-import scala.concurrent.{Await, ExecutionContext, Future, Promise}
+import scala.concurrent.{Await, Promise}
 import scala.util.{Failure, Success}
 
 /**
@@ -60,7 +60,9 @@ case class AsyncExecution[T] private (logic: Logic,
     } catch {
       case _: TimeoutException if timeout.isFinite() =>
         executionActor ! ExecutionActor.Cancel
-        throw NifflerTimeoutException(getExecutionSnapshot, timeout.asInstanceOf[FiniteDuration])
+        val ex = NifflerTimeoutException(getExecutionSnapshot, timeout.asInstanceOf[FiniteDuration])
+        promise.tryFailure(ex)
+        throw ex
       case ex: Throwable =>
         throw ex
     } finally {
@@ -84,6 +86,19 @@ case class AsyncExecution[T] private (logic: Logic,
   }
 
   Niffler.registerNewExecution(this)
+  promise.future.onComplete(result => {
+    finalizedSnapshot = result match {
+      case Success(r) =>
+        Some(r.snapshot)
+      case Failure(ex: NifflerExceptionBase) =>
+        Some(ex.snapshot)
+      case _ =>
+        None // should never happen
+    }
+    executionActor ! PoisonPill
+    Niffler.reportExecutionComplete(this)
+  })(system.dispatcher)
+
   logic.checkMissingImpl(initialCache, forToken) match {
     case missingImpl if missingImpl.nonEmpty =>
       promise.tryFailure(
@@ -102,17 +117,5 @@ case class AsyncExecution[T] private (logic: Logic,
       )
     case _ =>
       executionActor ! ExecutionActor.Invoke
-      promise.future.onComplete(result => {
-        finalizedSnapshot = result match {
-          case Success(r) =>
-            Some(r.snapshot)
-          case Failure(ex: NifflerEvaluationException) =>
-            Some(ex.snapshot)
-          case _ =>
-            None // should never happen
-        }
-        executionActor ! PoisonPill
-        Niffler.reportExecutionComplete(this)
-      })(ExecutionContext.global)
   }
 }

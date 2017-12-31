@@ -143,7 +143,7 @@ class LogicTest
     val t3Amend2: Implementation[Int] = t3.amendWith(1)
     val logic3: Logic = Logic(Seq(t3Amend1, t3Amend2, t2.assign(6)))
     logic3
-      .syncRun(t3, cache = ExecutionCache(Map(t3 -> ExecutionCacheEntry(42))), timeout = timeout.duration)
+      .syncRun(t3, cache = ExecutionCache.fromValue(Map(t3 -> 42)), timeout = timeout.duration)
       .result shouldBe 49
   }
 

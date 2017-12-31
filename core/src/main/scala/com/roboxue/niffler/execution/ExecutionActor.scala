@@ -3,6 +3,7 @@ package com.roboxue.niffler.execution
 import java.time.Clock
 
 import akka.actor.{FSM, Props}
+import com.roboxue.niffler.execution.ExecutionCacheEntryType.TokenEvaluationStats
 import com.roboxue.niffler.execution.ExecutionStatus._
 import com.roboxue.niffler.{execution, _}
 
