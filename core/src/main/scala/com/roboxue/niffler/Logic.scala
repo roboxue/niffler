@@ -54,7 +54,7 @@ class Logic private (val name: String,
   def asyncRun[T](token: Token[T],
                   extraImpl: Iterable[Implementation[_]] = Iterable.empty,
                   cache: ExecutionCache = ExecutionCache.empty): AsyncExecution[T] = {
-    AsyncExecution(this, token, cache)
+    AsyncExecution(this.diverge(extraImpl), token, cache)
   }
 
   /**
