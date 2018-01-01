@@ -41,9 +41,9 @@ object CodeGenTokenSyntax {
     })
   }
 
-  def evalTokenCodeGen(length: Int): Tree = {
+  def requiresCodeGen(length: Int): Tree = {
     val range = Range(1, length + 1).toList
-    q"""def evalTokens[..${typeParameters(range)}, T]
+    q"""def requires[..${typeParameters(range)}, T]
           (..${tokenParameters(range)})
           (f: (..${functionTypeParameter(range)}) => T): TokenEvaluation[T] = {
           TokenEvaluation[T](Set(..${tokensWithoutType(range)}), 
@@ -57,7 +57,7 @@ object CodeGenTokenSyntax {
     q"""def dependsOn[..${typeParameters(range)}]
           (..${tokenParameters(range)})
           (f: (..${functionTypeParameter(range)}) => T): DirectImplementation[T] = {
-          dependsOnEval(Niffler.evalTokens(..${tokensWithoutType(range)})(f))
+          dependsOnEval(Niffler.requires(..${tokensWithoutType(range)})(f))
         }"""
   }
 
@@ -68,7 +68,7 @@ object CodeGenTokenSyntax {
           (f: (..${functionTypeParameter(range)}) => R)
           (implicit canAmendTWithR: Append.Value[T, R]): 
           IncrementalImplementation[T, R] = {
-          amendWithEval(Niffler.evalTokens(..${tokensWithoutType(range)})(f))
+          amendWithEval(Niffler.requires(..${tokensWithoutType(range)})(f))
         }"""
   }
 
@@ -93,7 +93,7 @@ object CodeGenTokenSyntax {
         thisToken: Token[T] =>
 
         def asEval: TokenEvaluation[T] = {
-          Niffler.evalTokens(thisToken)(i => i)
+          Niffler.requires(thisToken)(i => i)
         }
 
         def assign(constant: => T): DirectImplementation[T] = {

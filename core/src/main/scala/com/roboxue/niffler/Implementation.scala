@@ -7,7 +7,7 @@ import com.roboxue.niffler.execution.Append
   * Don't create this class directly.
   * Use helper methods in [[Token]] like [[Token.assign]],
   * [[Token.amendWith]], [[Token.amendWithToken]], [[Token.dependsOn]], [[Token.dependsOnToken]]
-  * or in [[Niffler]] like [[Niffler.constant]] or [[Niffler.evalTokens]]
+  * or in [[Niffler]] like [[Niffler.constant]] or [[Niffler.requires]]
   *
   * @author rxue
   * @since 12/15/17.
