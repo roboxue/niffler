@@ -2,6 +2,7 @@ package com.roboxue.niffler.examples
 
 import com.roboxue.niffler._
 import com.roboxue.niffler.execution.NifflerInvocationException
+import com.roboxue.niffler.monitoring.{ExecutionHistoryService, NifflerMonitor}
 import org.jgrapht.graph.{DefaultEdge, DirectedAcyclicGraph}
 
 import scala.util.Try
@@ -129,11 +130,13 @@ object NifflerSyntaxDemo {
           .syncRun(NifflerDemo.nLogin, extraImpl = Seq(NifflerDemo.nLogin.dependsOn(NifflerDemo.nPassword) {
             _ == "password"
           }), cache = cacheOfR3)
-          .result == false
+          .result == true
       )
-
+      Niffler.combine(NifflerMonitor, ExecutionHistoryService).syncRun(NifflerMonitor.nifflerMonitorStartServer)
+      // let's open http://localhost:4080/history to view all the operation we have done!
     } finally {
       // always call Niffler.terminate to stop the akka system that is backing it.
-      Niffler.terminate()
+      // remove Niffler.terminate if you want this to be a daemon instance
+//      Niffler.terminate()
     }
 }
