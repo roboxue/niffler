@@ -159,8 +159,8 @@ object ExecutionHistoryService extends Niffler with ServiceUtils {
                 )
               case ExecutionCacheEntryType.Injected =>
                 Json.obj("uuid" -> token.uuid.asJson, "status" -> "injected".asJson)
-              case ExecutionCacheEntryType.Inherited =>
-                Json.obj("uuid" -> token.uuid.asJson, "status" -> "inherited".asJson)
+              case ExecutionCacheEntryType.Cached =>
+                Json.obj("uuid" -> token.uuid.asJson, "status" -> "cached".asJson)
             }
         })
         Json.obj(

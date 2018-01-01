@@ -43,10 +43,12 @@ object NifflerSyntaxDemo {
         (userEmail, userPassword) =>
           userEmail == userPassword
       })
+
       // a pure function can be provided instead of a lambda function
       def alwaysSuccessfulLogin(email: String, password: String): Boolean = {
         true
       }
+
       val loginImplementation4: Implementation[Boolean] = login.dependsOn(email, password)(alwaysSuccessfulLogin)
 
       // Niffler is a collection of implementations.
@@ -136,7 +138,7 @@ object NifflerSyntaxDemo {
       // let's open http://localhost:4080/history to view all the operation we have done!
     } finally {
       // always call Niffler.terminate to stop the akka system that is backing it.
-      // remove Niffler.terminate if you want this to be a daemon instance
-//      Niffler.terminate()
+      // unless in this demo I want this to be a daemon instance
+      // Niffler.terminate()
     }
 }

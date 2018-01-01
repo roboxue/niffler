@@ -210,11 +210,12 @@
             return 'success'
           case 'running':
             return 'warning'
-          case 'inherited':
+          case 'cached':
           case 'injected':
           case 'blocked':
             return 'secondary'
         }
+        console.log(token.executionStatus)
         return 'default'
       },
       viewToken: function (tokenUuid) {

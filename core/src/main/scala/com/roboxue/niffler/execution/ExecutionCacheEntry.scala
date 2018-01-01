@@ -5,7 +5,7 @@ package com.roboxue.niffler.execution
   * @since 12/19/17.
   */
 case class ExecutionCacheEntry[T](result: T, entryType: ExecutionCacheEntryType, ttl: Option[Long]) {
-  private[niffler] def toInherited: ExecutionCacheEntry[T] = copy(entryType = ExecutionCacheEntryType.Inherited)
+  private[niffler] def toCacheHit: ExecutionCacheEntry[T] = copy(entryType = ExecutionCacheEntryType.Cached)
 }
 
 object ExecutionCacheEntry {

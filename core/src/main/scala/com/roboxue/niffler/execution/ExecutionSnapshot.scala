@@ -31,11 +31,11 @@ case class ExecutionSnapshot(logic: Logic,
     implicit object ExecutionCacheEntryTypeOrdering extends Ordering[ExecutionCacheEntryType] {
       override def compare(x: ExecutionCacheEntryType, y: ExecutionCacheEntryType): Int = {
         (x, y) match {
-          case (Inherited, Inherited) | (Injected, Injected) =>
+          case (Cached, Cached) | (Injected, Injected) =>
             0
-          case (Inherited, Injected) | (Injected, TokenEvaluationStats(_, _)) =>
+          case (Cached, Injected) | (Injected, TokenEvaluationStats(_, _)) =>
             -1
-          case (Injected, Inherited) | (TokenEvaluationStats(_, _), Injected) =>
+          case (Injected, Cached) | (TokenEvaluationStats(_, _), Injected) =>
             1
           case (l: TokenEvaluationStats, r: TokenEvaluationStats) if l.startTime == r.startTime =>
             l.completeTime compare l.completeTime
@@ -47,7 +47,7 @@ case class ExecutionSnapshot(logic: Logic,
 
     val (beforeInvocation, afterInvocation) =
       cache.storage.toSeq.partition(pair => {
-        invocationTime.isEmpty || pair._2.entryType == Inherited || pair._2.entryType == Injected
+        invocationTime.isEmpty || pair._2.entryType == Cached || pair._2.entryType == Injected
       })
     if (beforeInvocation.nonEmpty) {
       println("reused cache:")

@@ -5,7 +5,7 @@
                 <h1 class="display-3">Execution History</h1>
                 <div class="card">
                     <div class="card-body" v-if="loading">
-                        <h4 class="card-title">Loading...<br>
+                        <h4 class="card-title">Loading...<br/>
                             This tab will display the live executions and a portion of past execution history.
                         </h4>
                     </div>

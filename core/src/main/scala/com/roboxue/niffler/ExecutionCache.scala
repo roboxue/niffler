@@ -19,7 +19,7 @@ case class ExecutionCache(storage: Map[Token[_], ExecutionCacheEntry[_]]) {
   }
 
   def mutableFork: MutableExecutionCache = {
-    new MutableExecutionCache(storage.mapValues(_.toInherited))
+    new MutableExecutionCache(storage.mapValues(_.toCacheHit))
   }
 
   def hit(token: Token[_]): Boolean = {
@@ -74,7 +74,7 @@ class MutableExecutionCache(initialState: Map[Token[_], ExecutionCacheEntry[_]])
     storage.retain({
       case (_, value) =>
         value.entryType match {
-          case ExecutionCacheEntryType.Injected | ExecutionCacheEntryType.Inherited =>
+          case ExecutionCacheEntryType.Injected | ExecutionCacheEntryType.Cached =>
             true
           case ExecutionCacheEntryType.TokenEvaluationStats(_, completeTime) =>
             value.ttl.isEmpty || now < completeTime + value.ttl.get

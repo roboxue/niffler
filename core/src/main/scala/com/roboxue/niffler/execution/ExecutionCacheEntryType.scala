@@ -11,5 +11,5 @@ object ExecutionCacheEntryType {
     override def toString: String = s"$startTime -> $completeTime"
   }
   case object Injected extends ExecutionCacheEntryType
-  case object Inherited extends ExecutionCacheEntryType
+  case object Cached extends ExecutionCacheEntryType
 }
