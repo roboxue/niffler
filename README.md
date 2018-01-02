@@ -111,12 +111,12 @@ Using an example of a simple project, I'd like to demonstrate how niffler helps 
 "Alice and Bob works on Charlie's team. They are writing a document compairison engine here, so the idea is Alice and Bob each will write many versions of relevance algorithm that will calculate two documents' similarity score."
 Their repo currently has following folder layout:
 ```
-Interface.scala // Shared code, result of a architecture design, maintained by Charlie
+EngineBase.scala // Shared code, result of a architecture design, maintained by Charlie
 Engine1.scala // Alice's code
 Engine2.scala // Bob's code
 Engine3.scala // Bob's code
 Engine4.scala // Alice's code
-Main.scala // Shared code, maintained by Charlie
+Application.scala // Shared code, maintained by Charlie
 ArgsUtils.scala // Shared code, maintained by Charlie
 ```
 ```scala
@@ -131,12 +131,12 @@ trait EngineBase {
 }
 
 // ArgsUtils.scala
-class ArgsUtils(args: String) {
+class ArgsUtils(args: Array[String]) {
   def file1: String = ... // ignored parsing code
   def file2: String = ... // ignored parsing code
 }
 
-// Main.scala
+// Application.scala
 object Application {
   def main(args: Array[String]): Unit = {
     val engine1 = new Engine1()
@@ -186,20 +186,20 @@ When Alice is working on improvements, she might want to use a Word Stemmer and 
 
 PR looks like
 ```scala
-// Interface.scala, aviodable if the interface doesn't have parameter list
+// EngineBase.scala, inevitable to add stemmer to the contract
 + * @param stemmer a word stemmer
 - def scoreDoc(doc1: String, doc2: String): Int
 + def scoreDoc(doc1: String, doc2: String, stemmer: Stemmer): Int
 
 // ArgsUtils.scala
-class ArgsUtils(args: String) {
+class ArgsUtils(args: Array[String]) {
   def file1: String = ... // ignored parsing code
   def file2: String = ... // ignored parsing code
 + def stemmer: Stemmer = ... // ignored implemention, unaviodable changes
 + def stopWordList: List[String] = ... // ignored implemention, unaviodable changes
 }
 
-// Main.scala
+// Application.scala
 object Application {
   def main(args: Array[String]): Unit = {
 +   val stopWordList = parsedArgs.stopWordList // avoidable if engine1 can create the stopWordList from args itself
@@ -216,7 +216,7 @@ object Application {
 class Engine1(stopWordList: List[String]) extends EngineBase {
 - override def scoreDoc(doc1: String, doc2: String): Int = {
 + override def scoreDoc(doc1: String, doc2: String, stemmer: Stemmer): Int = {
-*   // ...magic 1 changed
+*   // new implementation details in engine 1
   }
 }
 
@@ -224,113 +224,145 @@ class Engine1(stopWordList: List[String]) extends EngineBase {
 class Engine2 extends EngineBase {
 - override def scoreDoc(doc1: String, doc2: String): Int = {
 + override def scoreDoc(doc1: String, doc2: String, stemmer: Stemmer): Int = {
-    // ...magic 2 unchanged
+    // ...implementation details in engine 2 unchanged
   }
 }
 
 // Engine3.scala and Engine4.scala are same as Engine2.scala
+class Engine3 extends EngineBase {
+- override def scoreDoc(doc1: String, doc2: String): Int = {
++ override def scoreDoc(doc1: String, doc2: String, stemmer: Stemmer): Int = {
+    // ...implementation details in engine 3 unchanged
+  }
+}
+class Engine4 extends EngineBase {
+- override def scoreDoc(doc1: String, doc2: String): Int = {
++ override def scoreDoc(doc1: String, doc2: String, stemmer: Stemmer): Int = {
+    // ...implementation details in engine 4 unchanged
+  }
+}
 ```
 
 Avoidable changes are
 - Engine2.scala
 - Engine3.scala
 - Engine4.scala
-- Interface.scala
-- Main.scala
+- Application.scala
 
-Unavioable changes are
+Inevitable changes are
+- EngineBase.scala
 - Engine1.scala
 - ArgsUtils.scala
 
 Let's see how Niffler can help by eliminating the interface methods and constructors
 ```scala
-// Interface.scala
+// EngineBase.scala
 trait EngineBase {
   this: Niffler =>
-  final val file1: Token[String] = Token("one document")
-  final val file2: Token[String] = Token("another document")
+  import EngineBase._
   final val scoreDoc: Token[Int] = Token("a score between 0 and 100 where 100 means most similar")
-  final val initializeCache: Token[Unit] = Token("initalize cache to store some reuseable data")
   protected def scoreDocImpl: Implementation[Int]
-
   addImpl(scoreDocImpl)
-  addImpl(initializeCache.dependsOn(file1, file2) {
-  	(_, _) => // no op
-  })
-  addImpl(file1.dependsOn(Niffler.argv) {
-    args => parseArgsUtils(args).file1
-  })
-  addImpl(file2.dependsOn(Niffler.argv) {
-    args => parseArgsUtils(args).file2
+
+  addImpl(file1.dependsOn(parsedArgs) { _.file1 })
+  addImpl(file2.dependsOn(parsedArgs) { _.file2 })
+  addImpl(parsedArgs.dependsOn(Niffler.argv) { (args) =>
+    new ArgsUtils(args)
   })
 }
 
-// Main.scala
+object EngineBase extends Niffler {
+  final val parsedArgs: Token[ArgsUtils] = Token("parsed argument")
+  final val file1: Token[String] = Token("one document")
+  final val file2: Token[String] = Token("another document")
+}
+
+// ArgsUtils.scala
+class ArgsUtils(args: Array[String]) {
+  def file1: String = "file1 content" // ignored actual parsing code, use dummy result instead
+  def file2: String = "file2 content" // ignored actual parsing code, use dummy result instead
+}
+
+// Application.scala
 object Application {
   def main(args: Array[String]): Unit = {
-    Niffler.init(args) // making sure args is broadcasted to every niffler in this jvm
-    try {
-      val engines = Seq(Engine1, Engine2, Engine3, Engine4) // a Seq[Niffler with EngineBase]
-      val cacheInitializer = new Niffler with EngineBase // we create a Niffler with EngineBase to utilize the initializeCache command
-      val sharedCache = cacheInitializer.syncRun(cacheInitialilzer.initializeCache).cache // this cache contains the value of file1 and file2 now
-      val score = engines.map(eng => {
-        eng.syncRun(eng.scoreDoc, cache = sharedCache).result // using sharedCache, file parsing is saved
-      }).sum.toDouble / engines.length
-      println(s"avg score is $score")
-    } finally {
-	  Niffler.termiate()
-    }
+    Niffler.init(args) // making sure args is broadcast to every niffler in this jvm
+    val totalScore: Token[Int] = Token("execute all engine and calculate a total score")
+    val engines = Seq(Engine1, Engine2, Engine3, Engine4)
+    val accumulateScores: Seq[Implementation[Int]] = engines.map(engine => totalScore.amendWithToken(engine.scoreDoc))
+    val combinedScoringEngine = Niffler.combine(engines: _*).diverge(accumulateScores)
+    val averageScore = combinedScoringEngine
+      .syncRun(totalScore)
+      .result
+      .toDouble / engines.length
+    println(s"avg score is $averageScore")
+    Niffler.terminate()
   }
 }
 
 // Engine1.scala
 object Engine1 extends Niffler with EngineBase {
+  import EngineBase._
   override def scoreDocImpl: Implementation[Int] = scoreDoc.dependsOn(file1, file2) {
     (file1, file2) =>
-    // ...magic 1
+    // ...magic 1, shouldBe sometime smarter in production
+    1
   }
 }
 
 // Engine2.scala
 object Engine2 extends Niffler with EngineBase {
+  import EngineBase._
   override def scoreDocImpl: Implementation[Int] = scoreDoc.dependsOn(file1, file2) {
     (file1, file2) =>
-    // ...magic 2
+    // ...magic 2, shouldBe sometime smarter in production
+    2
   }
 }
 
 // Engine3.scala
 object Engine3 extends Niffler with EngineBase {
+  import EngineBase._
   override def scoreDocImpl: Implementation[Int] = scoreDoc.dependsOn(file1, file2) {
     (file1, file2) =>
-    // ...magic 3
+    // ...magic 3, shouldBe sometime smarter in production
+    3
   }
 }
 
 // Engine4.scala
 object Engine4 extends Niffler with EngineBase {
+  import EngineBase._
   override def scoreDocImpl: Implementation[Int] = scoreDoc.dependsOn(file1, file2) {
     (file1, file2) =>
-    // ...magic 4
+    // ...magic 4, shouldBe sometime smarter in production
+    4
   }
 }
 ```
 
-In the PR stage, there is no more offline architecture discussion needed about those interface changes, and whatever crazy thing Alice does stays in Engine1.scala only
+In the PR stage, only stemmer changes go to EngineBase, and whatever crazy thing Alice does stays in Engine1.scala only
 PR is way smaller now!
 ```scala
 // ArgsUtils.scala
-class ArgsUtils(args: String) {
-  def file1: String = ... // ignored parsing code
-  def file2: String = ... // ignored parsing code
+class ArgsUtils(args: Array[String]) {
 + def stemmer: Stemmer = ... // ignored implemention, unaviodable changes
 + def stopWordList: List[String] = ... // ignored implemention, unaviodable changes
 }
 
+// EngineBase.scala
+trait EngineBase {
++ addImpl(stemmer.dependsOn(parsedArgs) { _.stemmer })
+}
+
+object EngineBase {
++ final val stemmer: Token[Stemmer] = Token("a word stemmer")
+}
 
 // Engine1.scala
-- object Engine1 extends Niffler with EngineBase {
-+ object Engine1 extends Niffler with EngineBase with NeedStemmer with NeedStopWordList {
+object Engine1 extends Niffler with EngineBase {
++ final val stopWordList: Token[List[String]] = Token("a stop word list marking common vocabulary that should be ignored")
++ addImpl(stopWordList.dependsOn(EngineBase.parsedArgs) { _.stopWordList })
 -  override def scoreDocImpl: Implementation[Int] = scoreDoc.dependsOn(file1, file2, stemmer) {
 +  override def scoreDocImpl: Implementation[Int] = scoreDoc.dependsOn(file1, file2, stemmer, stopWordList) {
 -   (file1, file2) =>
@@ -338,20 +370,4 @@ class ArgsUtils(args: String) {
 *   // ...magic 1 changed
   }
 }
-
-+trait NeedStemmer {
-+  this: Niffler =>
-+  final val stemmer: Token[Stemmer] = Token("create a stemmer")
-+  addImpl(stemmer.dependsOn(Niffler.argv) {
-+    (args) => new ArgsUtils(args).stemmer
-+  })
-+}
-
-+trait NeedStopWordList {
-+  this: Niffler =>
-+  final val stopWordList: Token[List[String]] = Token("create a stop word list")
-+  addImpl(stopWordList.dependsOn(Niffler.argv) {
-+    (args) => new ArgsUtils(args).stopWordList
-+  })
-+}
 ```
