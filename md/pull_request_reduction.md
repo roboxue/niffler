@@ -3,18 +3,20 @@ Niffler helps reducing pull request size and risk of merge conflicts
 - Less file touched & Smaller PR == reduced risk of merge conflicts 
 
 Merge conflicts happens when two developers are touching the same source file. 
-And the smaller the changelist, or the fewer files being touch, we are more likely to avoid merge conflicts.
+And the smaller the changelist, or the fewer files being touch, the more likely we are to avoid merge conflicts.
 
 ### Why OOP could be a problem here
-OOP requires an upfront design because once an interface/constructor has been written, 
-and being implemented/called by a few other classes, updating those becomes a "merge conflict generator".
+OOP requires an upfront design because once an interface/constructor has been written and implemented/called by a few other classes, updating those becomes a "merge conflict generator".
 - updating constructor to ask for new data will modify every file that creates this class, 
-and propagate the need of this new data to the callsite, a chain effect
+and propagate the need of this new data to the callsite, **a chain effect**. (in the data flow chart below, the is an extra hop of newData in the "Factory", causing an extra file being modified)  
+![img](https://user-images.githubusercontent.com/4080835/34475025-f9a8a1dc-ef4c-11e7-8c14-07686550d9ec.png)
 - updating interface to ask for new data will modify every child class that implements it, 
-regardless if they need this new param or not. It also propagate the need of this new data to the interface method's call site, another chain effect
+regardless if they need this new param or not. It also propagate the need of this new data to the interface method's call site, **another chain effect**. (in the data flow chart below, the red dashed line is unnecesary when adding a new data to instance 2 via updating interface method signature)  
+![img](https://user-images.githubusercontent.com/4080835/34475004-bb1e1bfe-ef4c-11e7-9e36-9a41040a5ec1.png)
+
 
 Updating constructors and interface methods all yield to a chain effect that can easily impact 10s of production files and same amount of test files.
-It is true that you can avoid these with a more careful and flexible upfront interface design, but it is HARD, 
+It is true that you can avoid these with a more careful and flexible upfront interface design, but it is **HARD**, 
 especially if your app's use case isn't fully known when you started writing code, which tends to be the norm during Agile programming
 
 You can think about the questions in another way: when my function `foo` receives five variable `bar1, bar2, bar3, bar4, bar5`,
@@ -39,10 +41,10 @@ In this way, new features can always be supported by new tokens and new implemen
 ### Detailed example
 Using an example of a simple project, I'd like to demonstrate how niffler helps reducing the size of the PR.
 
-The source code using OOP is available at [here](https://github.com/roboxue/niffler/tree/306a8f5f97425a7c42e1435723284d1558ca76d3/example/src/main/scala/com/roboxue/niffler/examples/slimmer_pr_contorl)
-The source code using Niffler is available at [here](https://github.com/roboxue/niffler/tree/306a8f5f97425a7c42e1435723284d1558ca76d3/example/src/main/scala/com/roboxue/niffler/examples/slimmer_pr)
-The diff list using OOP is [this commit](https://github.com/roboxue/niffler/commit/3a93e1b43c80add4d07a33650f326bd4078490f6)
-The diff list using Niffler is [this commit](https://github.com/roboxue/niffler/commit/b2c1b54c4894e92b4cc1cd0992391e8a43e3961d)
+* The source code using OOP is available at [here](https://github.com/roboxue/niffler/tree/306a8f5f97425a7c42e1435723284d1558ca76d3/example/src/main/scala/com/roboxue/niffler/examples/slimmer_pr_contorl)
+* The source code using Niffler is available at [here](https://github.com/roboxue/niffler/tree/306a8f5f97425a7c42e1435723284d1558ca76d3/example/src/main/scala/com/roboxue/niffler/examples/slimmer_pr)
+* The diff list using OOP is [this commit](https://github.com/roboxue/niffler/commit/3a93e1b43c80add4d07a33650f326bd4078490f6)
+* The diff list using Niffler is [this commit](https://github.com/roboxue/niffler/commit/b2c1b54c4894e92b4cc1cd0992391e8a43e3961d)
 
 "Alice and Bob works on Charlie's team. They are writing a document comparison engine here, so the idea is Alice and Bob each will write many versions of relevance algorithm that will calculate two documents' similarity score."
 Their repo currently has following folder layout:
@@ -242,7 +244,7 @@ object Engine1 extends Niffler with EngineBase {
   import EngineBase._
   override def scoreDocImpl: Implementation[Int] = scoreDoc.dependsOn(file1, file2) {
     (file1, file2) =>
-    // ...magic 1, shouldBe sometime smarter in production
+    // ...magic 1, shouldBe something smarter in production
     1
   }
 }
@@ -252,7 +254,7 @@ object Engine2 extends Niffler with EngineBase {
   import EngineBase._
   override def scoreDocImpl: Implementation[Int] = scoreDoc.dependsOn(file1, file2) {
     (file1, file2) =>
-    // ...magic 2, shouldBe sometime smarter in production
+    // ...magic 2, shouldBe something smarter in production
     2
   }
 }
@@ -262,7 +264,7 @@ object Engine3 extends Niffler with EngineBase {
   import EngineBase._
   override def scoreDocImpl: Implementation[Int] = scoreDoc.dependsOn(file1, file2) {
     (file1, file2) =>
-    // ...magic 3, shouldBe sometime smarter in production
+    // ...magic 3, shouldBe something smarter in production
     3
   }
 }
@@ -272,7 +274,7 @@ object Engine4 extends Niffler with EngineBase {
   import EngineBase._
   override def scoreDocImpl: Implementation[Int] = scoreDoc.dependsOn(file1, file2) {
     (file1, file2) =>
-    // ...magic 4, shouldBe sometime smarter in production
+    // ...magic 4, shouldBe something smarter in production
     4
   }
 }
