@@ -15,6 +15,7 @@ trait EngineBase {
 
   addImpl(file1.dependsOn(parsedArgs) { _.file1 })
   addImpl(file2.dependsOn(parsedArgs) { _.file2 })
+  addImpl(stemmer.dependsOn(parsedArgs) { _.stemmer })
   addImpl(parsedArgs.dependsOn(Niffler.argv) { (args) =>
     new ArgsUtils(args)
   })
@@ -24,4 +25,5 @@ object EngineBase extends Niffler {
   final val parsedArgs: Token[ArgsUtils] = Token("parsed argument")
   final val file1: Token[String] = Token("one document")
   final val file2: Token[String] = Token("another document")
+  final val stemmer: Token[Stemmer] = Token("a word stemmer")
 }

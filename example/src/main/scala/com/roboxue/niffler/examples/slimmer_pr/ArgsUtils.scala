@@ -7,4 +7,6 @@ package com.roboxue.niffler.examples.slimmer_pr
 class ArgsUtils(args: Array[String]) {
   def file1: String = "file1 content" // ignored actual parsing code, use dummy result instead
   def file2: String = "file2 content" // ignored actual parsing code, use dummy result instead
+  def stemmer: Stemmer = new Stemmer() // ignored actual parsing code, use dummy result instead
+  def stopWordList: List[String] = List() // ignored actual parsing code, use dummy result instead
 }

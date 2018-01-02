@@ -1,17 +1,21 @@
 package com.roboxue.niffler.examples.slimmer_pr
 
-import com.roboxue.niffler.{Implementation, Niffler}
+import com.roboxue.niffler.{Implementation, Niffler, Token}
 
 /**
   * @author rxue
   * @since 1/1/18.
   */
 object Engine1 extends Niffler with EngineBase {
+  final val stopWordList: Token[List[String]] = Token(
+    "a stop word list marking common vocabulary that should be ignored"
+  )
+  addImpl(stopWordList.dependsOn(EngineBase.parsedArgs) { _.stopWordList })
 
   import EngineBase._
-
-  override def scoreDocImpl: Implementation[Int] = scoreDoc.dependsOn(file1, file2) { (file1, file2) =>
-    // ...magic 1, shouldBe sometime smarter in production
-    1
+  override def scoreDocImpl: Implementation[Int] = scoreDoc.dependsOn(file1, file2, stopWordList, stemmer) {
+    (file1, file2, stopWordList, stemmer) =>
+      // ...magic 1, shouldBe sometime smarter in production
+      1
   }
 }
