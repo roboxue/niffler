@@ -9,7 +9,8 @@ trait EngineBase {
   /**
     * @param doc1 one document
     * @param doc2 another document
+    * @param stemmer a word stemmer
     * @return a score between 0 and 100 where 100 means most similar
     */
-  def scoreDoc(doc1: String, doc2: String): Int
+  def scoreDoc(doc1: String, doc2: String, stemmer: Stemmer): Int
 }
