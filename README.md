@@ -33,15 +33,11 @@ see [NifflerSyntaxDemo.scala](example/src/main/scala/com/roboxue/niffler/example
 - DRY up your comments: don't repeat yourself even when commenting. Doc string belongs to `Tokens`. The moment your `Implementation` referenced other `Token`s, their doc-string follows as well. See [example2](#example-2)
 
 ##### Better teamwork
-- Reduce pull request diff size: With Niffler, it is totally possible to get rid of abstract method declaration in interfaces and class constructors, the major reason why there is merge conflicts during teamwork. (Details explaned [later](#niffler-reduces-merge-conflicts-in-prs))
+- Reduce pull request diff size: With Niffler, it is totally possible to get rid of abstract method declaration in interfaces and class constructors, the major reason why there is merge conflicts during teamwork. (Details explaned [later](#niffler-reduces-pull-request-size))
 - Self graphic doc: Tired of drawing a flowchart to demonstate your dataflow which will be out-of-date the moment it has been created? Automated DAG means self-graphic-doc
 
 
-
-##### Niffler reduces merge conflicts in PRs
-...TBD...
-
-##### Example 1
+#### Example 1
 Concurrent execution
 ```scala
     import com.roboxue.niffler.{Logic, Token}
@@ -107,4 +103,255 @@ After:
     myOtheWwork dependsOn(p1, p2) {...}
 ```
 
+### Niffler reduces pull request size
+Merge conflicts happens when two developers are touching the same source file. And the smaller the changelist, or the fewer files being touch, we are more likely to aviod merge conflicts.
 
+Using an example of a simple project, I'd like to demonstrate how niffler helps reducing the size of the PR.
+
+"Alice and Bob works on Charlie's team. They are writing a document compairison engine here, so the idea is Alice and Bob each will write many versions of relevance algorithm that will calculate two documents' similarity score."
+Their repo currently has following folder layout:
+```
+Interface.scala // Shared code, result of a architecture design, maintained by Charlie
+Engine1.scala // Alice's code
+Engine2.scala // Bob's code
+Engine3.scala // Bob's code
+Engine4.scala // Alice's code
+Main.scala // Shared code, maintained by Charlie
+ArgsUtils.scala // Shared code, maintained by Charlie
+```
+```scala
+// Interface.scala
+trait EngineBase {
+  /**
+    * @param doc1 one document
+    * @param doc2 another document
+    * @return a score between 0 and 100 where 100 means most similar
+    */
+  def scoreDoc(doc1: String, doc2: String): Int
+}
+
+// ArgsUtils.scala
+class ArgsUtils(args: String) {
+  def file1: String = ... // ignored parsing code
+  def file2: String = ... // ignored parsing code
+}
+
+// Main.scala
+object Application {
+  def main(args: Array[String]): Unit = {
+    val engine1 = new Engine1()
+    val engine2 = new Engine2()
+    val engine3 = new Engine3()
+    val engine4 = new Engine4()
+    val parsedArgs = new ArgsUtils(args)
+    val file1 = parsedArgs.file1
+    val file2 = parsedArgs.file2
+    val engines = Seq(engine1, engine2, engine3, engine4)
+    val score = engines.map(eng => {
+      eng.scoreDoc(file1, file2)
+    }).sum.toDouble / engines.length
+    println(s"avg score is $score")
+  }
+}
+
+// Engine1.scala
+class Engine1 extends EngineBase {
+  override def scoreDoc(doc1: String, doc2: String): Int = {
+    // ...magic 1
+  }
+}
+
+// Engine2.scala
+class Engine2 extends EngineBase {
+  override def scoreDoc(doc1: String, doc2: String): Int = {
+    // ...magic 2
+  }
+}
+
+// Engine3.scala
+class Engine3 extends EngineBase {
+  override def scoreDoc(doc1: String, doc2: String): Int = {
+    // ...magic 3
+  }
+}
+
+// Engine4.scala
+class Engine4 extends EngineBase {
+  override def scoreDoc(doc1: String, doc2: String): Int = {
+    // ...magic 4
+  }
+}
+```
+When Alice is working on improvements, she might want to use a Word Stemmer and a Stop Word List to power the enhancement. **During offline architecture discuesion**, Bob and Charlie agree that Stemmer could be added to the common interface, while stopWordList should be added to Engine1 locally since other Engine might not use it. In this case, `Interface.scala` and every `Engine*` file will be changed to accomondate the interface update, and `Engine1`'s constructor will be updated as well leading to a change in `Main.scala`
+
+PR looks like
+```scala
+// Interface.scala, aviodable if the interface doesn't have parameter list
++ * @param stemmer a word stemmer
+- def scoreDoc(doc1: String, doc2: String): Int
++ def scoreDoc(doc1: String, doc2: String, stemmer: Stemmer): Int
+
+// ArgsUtils.scala
+class ArgsUtils(args: String) {
+  def file1: String = ... // ignored parsing code
+  def file2: String = ... // ignored parsing code
++ def stemmer: Stemmer = ... // ignored implemention, unaviodable changes
++ def stopWordList: List[String] = ... // ignored implemention, unaviodable changes
+}
+
+// Main.scala
+object Application {
+  def main(args: Array[String]): Unit = {
++   val stopWordList = parsedArgs.stopWordList // avoidable if engine1 can create the stopWordList from args itself
++   val stemmer = parsedArgs.stemmer // avoidable if stemmer can be created by whoever needs it and cached properly
+-   val engine1 = new Engine1()
++   val engine1 = new Engine1(stopWordList) // avoidable if there is no constructor
+-   val score = engines.map(eng => eng.scoreDoc(file1, file2)).sum.toDouble / engines.length
++   val score = engines.map(eng => eng.scoreDoc(file1, file2, stemmer)).sum.toDouble / engines.length // avoidable if engine can create stemmers themselves
+    println(s"score is $score")
+  }
+}
+
+// Engine1.scala, changes here are unavoidable
+class Engine1(stopWordList: List[String]) extends EngineBase {
+- override def scoreDoc(doc1: String, doc2: String): Int = {
++ override def scoreDoc(doc1: String, doc2: String, stemmer: Stemmer): Int = {
+*   // ...magic 1 changed
+  }
+}
+
+// Engine2.scala, changes could be avoided if there is no interface change
+class Engine2 extends EngineBase {
+- override def scoreDoc(doc1: String, doc2: String): Int = {
++ override def scoreDoc(doc1: String, doc2: String, stemmer: Stemmer): Int = {
+    // ...magic 2 unchanged
+  }
+}
+
+// Engine3.scala and Engine4.scala are same as Engine2.scala
+```
+
+Avoidable changes are
+- Engine2.scala
+- Engine3.scala
+- Engine4.scala
+- Interface.scala
+- Main.scala
+
+Unavioable changes are
+- Engine1.scala
+- ArgsUtils.scala
+
+Let's see how Niffler can help by eliminating the interface methods and constructors
+```scala
+// Interface.scala
+trait EngineBase {
+  this: Niffler =>
+  final val file1: Token[String] = Token("one document")
+  final val file2: Token[String] = Token("another document")
+  final val scoreDoc: Token[Int] = Token("a score between 0 and 100 where 100 means most similar")
+  final val initializeCache: Token[Unit] = Token("initalize cache to store some reuseable data")
+  protected def scoreDocImpl: Implementation[Int]
+
+  addImpl(scoreDocImpl)
+  addImpl(initializeCache.dependsOn(file1, file2) {
+  	(_, _) => // no op
+  })
+  addImpl(file1.dependsOn(Niffler.argv) {
+    args => parseArgsUtils(args).file1
+  })
+  addImpl(file2.dependsOn(Niffler.argv) {
+    args => parseArgsUtils(args).file2
+  })
+}
+
+// Main.scala
+object Application {
+  def main(args: Array[String]): Unit = {
+    Niffler.init(args) // making sure args is broadcasted to every niffler in this jvm
+    try {
+      val engines = Seq(Engine1, Engine2, Engine3, Engine4) // a Seq[Niffler with EngineBase]
+      val cacheInitializer = new Niffler with EngineBase // we create a Niffler with EngineBase to utilize the initializeCache command
+      val sharedCache = cacheInitializer.syncRun(cacheInitialilzer.initializeCache).cache // this cache contains the value of file1 and file2 now
+      val score = engines.map(eng => {
+        eng.syncRun(eng.scoreDoc, cache = sharedCache).result // using sharedCache, file parsing is saved
+      }).sum.toDouble / engines.length
+      println(s"avg score is $score")
+    } finally {
+	  Niffler.termiate()
+    }
+  }
+}
+
+// Engine1.scala
+object Engine1 extends Niffler with EngineBase {
+  override def scoreDocImpl: Implementation[Int] = scoreDoc.dependsOn(file1, file2) {
+    (file1, file2) =>
+    // ...magic 1
+  }
+}
+
+// Engine2.scala
+object Engine2 extends Niffler with EngineBase {
+  override def scoreDocImpl: Implementation[Int] = scoreDoc.dependsOn(file1, file2) {
+    (file1, file2) =>
+    // ...magic 2
+  }
+}
+
+// Engine3.scala
+object Engine3 extends Niffler with EngineBase {
+  override def scoreDocImpl: Implementation[Int] = scoreDoc.dependsOn(file1, file2) {
+    (file1, file2) =>
+    // ...magic 3
+  }
+}
+
+// Engine4.scala
+object Engine4 extends Niffler with EngineBase {
+  override def scoreDocImpl: Implementation[Int] = scoreDoc.dependsOn(file1, file2) {
+    (file1, file2) =>
+    // ...magic 4
+  }
+}
+```
+
+In the PR stage, there is no more offline architecture discussion needed about those interface changes, and whatever crazy thing Alice does stays in Engine1.scala only
+PR is way smaller now!
+```scala
+// ArgsUtils.scala
+class ArgsUtils(args: String) {
+  def file1: String = ... // ignored parsing code
+  def file2: String = ... // ignored parsing code
++ def stemmer: Stemmer = ... // ignored implemention, unaviodable changes
++ def stopWordList: List[String] = ... // ignored implemention, unaviodable changes
+}
+
+
+// Engine1.scala
+- object Engine1 extends Niffler with EngineBase {
++ object Engine1 extends Niffler with EngineBase with NeedStemmer with NeedStopWordList {
+-  override def scoreDocImpl: Implementation[Int] = scoreDoc.dependsOn(file1, file2, stemmer) {
++  override def scoreDocImpl: Implementation[Int] = scoreDoc.dependsOn(file1, file2, stemmer, stopWordList) {
+-   (file1, file2) =>
++   (file1, file2, stemmer, stopWordList) =>
+*   // ...magic 1 changed
+  }
+}
+
++trait NeedStemmer {
++  this: Niffler =>
++  final val stemmer: Token[Stemmer] = Token("create a stemmer")
++  addImpl(stemmer.dependsOn(Niffler.argv) {
++    (args) => new ArgsUtils(args).stemmer
++  })
++}
+
++trait NeedStopWordList {
++  this: Niffler =>
++  final val stopWordList: Token[List[String]] = Token("create a stop word list")
++  addImpl(stopWordList.dependsOn(Niffler.argv) {
++    (args) => new ArgsUtils(args).stopWordList
++  })
++}
+```
