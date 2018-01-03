@@ -1,26 +1,34 @@
 import LibraryVersions._
+import sbtrelease.ReleasePlugin.autoImport.ReleaseTransformations._
 
 import scala.language.postfixOps
 
 // Global settings
-organization in ThisBuild := "com.roboxue"
-scalaVersion in ThisBuild := "2.11.8"
-crossScalaVersions in ThisBuild := Seq("2.10.6", "2.11.8", "2.12.2")
 name := "niffler"
-description := "Proof of concept for using sbt syntax in production scala code"
+organization in ThisBuild := "com.roboxue"
+description := "Data flow programming paradigm library for Scala"
+developers := List(Developer("roboxue", "Robert Xue", "roboxue@roboxue.com", url("http://www.roboxue.com")))
+
+scalaVersion in ThisBuild := "2.11.8"
+crossScalaVersions in ThisBuild := Seq("2.11.8", "2.12.2")
 scalaModuleInfo := scalaModuleInfo.value map {
   _.withOverrideScalaVersion(true)
 }
-noPublishSettings
-
-lazy val generateCode = taskKey[Seq[File]]("Generate boilerplate code for niffler core.")
+skip in publish := true
+publishTo in ThisBuild := {
+  val nexus = "https://oss.sonatype.org/"
+  if (isSnapshot.value)
+    Some("snapshots" at nexus + "content/repositories/snapshots")
+  else
+    Some("releases" at nexus + "service/local/staging/deploy/maven2")
+}
 
 lazy val core = nifflerProject("core", enablePublish = true)
   .settings(
     sourceGenerators in Compile += {
-      generateCode
+      CodeGenTokenSyntax.generateCode
     },
-    generateCode := {
+    CodeGenTokenSyntax.generateCode := {
       sLog.value.info("Start code generation")
       val f1 = CodeGenTokenSyntax.saveToFile(sourceManaged.value / "main")
       sLog.value.info(s"Generation complete ${f1.toURI}")
@@ -61,7 +69,6 @@ resolvers ++= Seq(Resolver.sonatypeRepo("releases"), Resolver.sonatypeRepo("snap
 def nifflerProject(projectName: String, enablePublish: Boolean): Project =
   Project(projectName, file(projectName))
     .settings(commonSettings)
-    .settings(projectMetadata)
     .settings(if (enablePublish) publishSettings else noPublishSettings)
     .settings(moduleName := s"niffler-$projectName")
 
@@ -72,13 +79,35 @@ lazy val commonSettings = Seq(
   libraryDependencies ++= Seq("org.scalatest" %% "scalatest" % scalatest).map(_ % "test")
 )
 
-lazy val projectMetadata =
-  Seq(homepage := Some(url("https://github.com/roboxue/niffler")), startYear := Some(2017), scmInfo := {
+// Publish and release settings
+lazy val noPublishSettings = Seq(skip in publish := true)
+lazy val publishSettings = Seq(
+  releaseCrossBuild := true,
+  releasePublishArtifactsAction := PgpKeys.publishSigned.value,
+
+  homepage := Some(url("https://github.com/roboxue/niffler")),
+  licenses := Seq("Apache License, Version 2.0" -> url("https://www.apache.org/licenses/LICENSE-2.0.txt")),
+  startYear := Some(2017),
+
+  pomIncludeRepository := { _ => false },
+  publishMavenStyle := true,
+  publishArtifact in Test := false,
+  scmInfo := {
     val base = "github.com/roboxue/niffler"
     Some(ScmInfo(url(s"https://$base"), s"scm:git:https://$base", Some(s"scm:git:git@$base")))
-  })
-
-// Publish and release settings
-lazy val noPublishSettings = Seq(publish := {}, publishLocal := {}, publishArtifact := false)
-lazy val publishSettings = Seq(credentials += Credentials(Path.userHome / ".ivy2" / ".credentials"))
-releaseCrossBuild := true
+  },
+  releaseProcess := Seq[ReleaseStep](
+    checkSnapshotDependencies,
+    inquireVersions,
+    runClean,
+    runTest,
+    setReleaseVersion,
+    commitReleaseVersion,
+    tagRelease,
+    releaseStepCommand("publishSigned"),
+    setNextVersion,
+    commitNextVersion,
+    releaseStepCommand("sonatypeReleaseAll"),
+    pushChanges
+  )
+)

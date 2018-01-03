@@ -1,5 +1,7 @@
 import java.io.{File, PrintWriter}
 
+import sbt.{File, taskKey}
+
 import scala.reflect.runtime.universe
 
 /**
@@ -8,6 +10,8 @@ import scala.reflect.runtime.universe
   * @since 12/26/17.
   */
 object CodeGenTokenSyntax {
+
+  final val generateCode = taskKey[Seq[File]]("Generate boilerplate code for niffler core.")
 
   import universe._
 

@@ -1,14 +1,26 @@
 # Niffler: Dataflow programming for Scala
 
-- Self optimize
-- Self document
-- Self monitor
+<strong>Self optimize, Self document, Self monitor</strong>
 
-> "Let be greedy" 
+> "Let's be greedy" 
 
 ![niffler](https://78.media.tumblr.com/79cbce85198fb94f302ed8f7b47fa394/tumblr_inline_oivo7hMSOA1qbxxlx_500.gif)
 
-**Niffler** is a [Dataflow programming](https://en.wikipedia.org/wiki/Dataflow_programming) library for Scala. It's a set of lightweight DSL that encourages developer to write application logic in [Pure functions](https://en.wikipedia.org/wiki/Pure_function) and assembly these logic fragments into executable [DAGs](https://en.wikipedia.org/wiki/Directed_acyclic_graph) in runtime.
+**Niffler** is a [Dataflow programming](https://en.wikipedia.org/wiki/Dataflow_programming) library for Scala. 
+It's a set of lightweight DSL that encourages developer to write application logic in [Pure functions](https://en.wikipedia.org/wiki/Pure_function) 
+and assembly these logic fragments into executable [DAGs](https://en.wikipedia.org/wiki/Directed_acyclic_graph) in runtime.
+By using Niffler, you can easily write app that
+- `self-optimize`
+    - complex logic, assembled by `Implementations`, will execute in parallel whenever possible
+    - write your `Implementation` in any order as long as they don't bind to the same `Token`. Otherwise FIFO rule applies
+- `self-doc`
+    - visualize application logic in runtime, because it is a DAG
+    - options to dump svg files for `Object` that extends `Niffler` trait
+    - doc string are binded to `Token`, which means you don't have to repeatedly document your dependency/parameter list anymore
+- `self-monitor`
+ - view the progress of this execution when the app is running
+ - options to automatically log the execution time for each `Implementation` in the `Logic`
+ - unhandled exceptions can be pin pointed out
 
 ### Basic concepts
 > Algorithms + Data Structures = Programs [Niklaus Wirth](https://en.wikipedia.org/wiki/Algorithms_%2B_Data_Structures_%3D_Programs)
