@@ -73,7 +73,7 @@ object CodeGenTokenSyntax {
   }
 
   def nifflerSyntaxCodeGen(count: Int): Tree = {
-    val evalFunctions = Range(1, count + 1).toList.map(evalTokenCodeGen)
+    val evalFunctions = Range(1, count + 1).toList.map(requiresCodeGen)
     q"""
        trait NifflerSyntax {
         def constant[T](constant: => T): TokenEvaluation[T] = {
