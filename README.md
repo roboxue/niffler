@@ -1,5 +1,13 @@
 # Niffler: Dataflow programming for Scala
 
+- Self optimize
+- Self document
+- Self monitor
+
+> "Let be greedy" 
+
+![niffler](https://78.media.tumblr.com/79cbce85198fb94f302ed8f7b47fa394/tumblr_inline_oivo7hMSOA1qbxxlx_500.gif)
+
 **Niffler** is a [Dataflow programming](https://en.wikipedia.org/wiki/Dataflow_programming) library for Scala. It's a set of lightweight DSL that encourages developer to write application logic in [Pure functions](https://en.wikipedia.org/wiki/Pure_function) and assembly these logic fragments into executable [DAGs](https://en.wikipedia.org/wiki/Directed_acyclic_graph) in runtime.
 
 ### Basic concepts
@@ -7,7 +15,7 @@
 
 - `Token[T]` is the base unit of "data". Similar to declarations like `val a: Int`, it has all meta info related to a data, and can be used to fetch the actual value from an `ExecutionCache`
 - `ExecutionCache` is where data being stored. It's effectively a `Map[Token[Any], Any]` with garanteed type consistancy among it's entries.
-- `Implementation[T]` is the base unit of "algorithm/function". Implementation binds to a `Token[T]`, takes a list of other `Token[_]` as dependency, and a pure function to construct. Treated as a `def foo(params...)` that can be evaluated with a `ExecutionCache` and yield `T`, it will fetch the dependency's value from cache in runtime, run them using it's own code and write the result back to the cache with the token it binds to.g
+- `Implementation[T]` is the base unit of "algorithm/function". Implementation binds to a `Token[T]`, takes a list of other `Token[_]` as dependency, and a pure function to construct. Treated as a `def foo(params...)` that can be evaluated with a `ExecutionCache` and yield `T`, it will fetch the dependency's value from cache in runtime, run them using it's own code and write the result back to the cache with the token it binds to.
 - `Logic` and `Niffler` are all collection of `Implementation`. `Niffler` is privately mutable, while `Logic` is always immutable.
 - To eval an `Implementation`, you can do `logic.syncRun(someToken)`. This will create a DAG using `Implementations` in the `Logic`, evaluated every token whose dependency has been met, until the desired token has been evaluated.
 - `logic.asyncRun(someToken)` is also available as you might have guessed
@@ -25,7 +33,7 @@ see [NifflerSyntaxDemo.scala](example/src/main/scala/com/roboxue/niffler/example
   > This might be trival again if your application is simple. But if your repo is a collection of complex datapipelines, and/or they are currently sharing status like failed/succeeded using file system, give Niffler a try. Niffler eliminates the need of a standalone scheduling system, and provides the state sharing utilities from `ExecutionCache`
 
 ##### Better monitoring
-- Out-of-box web UI: There is an optional out-of-box utility server that can be brought up with one line. This UI will display every Niffler DAG's execution status, allowing you to visually inspect which part of your logic is throwing exceptions and how your DAG is executed in parallel.
+- Out-of-box web UI: [example](#example-3) There is an optional out-of-box utility server that can be brought up with one line. This UI will display every Niffler DAG's execution status, allowing you to visually inspect which part of your logic is throwing exceptions and how your DAG is executed in parallel.
 - Automatic performance metrics: Remeber the times you need to do timings like `println("this operation took ${endTime - startTime} millis")`? Since there is a clear logic boundry among `Implementation`, this is done automatically by Niffler now.
 
 ##### Better maintainance
@@ -103,3 +111,13 @@ After:
     myWork dependsOn(p1, p2) {...}
     myOtheWwork dependsOn(p1, p2) {...}
 ```
+
+##### Example 3
+Automatical list the topology of the `Logic`, and record the execution time for each `Token` in the `Logic`
+![image](https://user-images.githubusercontent.com/4080835/34538517-4435f948-f092-11e7-8e43-01ae05dab71e.png)
+
+Pin point where is the exception 
+![image](https://user-images.githubusercontent.com/4080835/34538479-224e6806-f092-11e7-80f6-c6e530abcdba.png)
+
+Live view of on going executions, know where it stucks, no maigc
+![image](https://user-images.githubusercontent.com/4080835/34538437-ff3d23d4-f091-11e7-8795-c741922ae0e5.png)
