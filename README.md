@@ -133,3 +133,8 @@ Pin point where is the exception
 
 Live view of on going executions, know where it stucks, no maigc
 ![image](https://user-images.githubusercontent.com/4080835/34538437-ff3d23d4-f091-11e7-8795-c741922ae0e5.png)
+
+##### Housekeeping
+To release, make sure pgp key and sonatype credential is in the correct location, then execute 
+- `sbt "release with-defaults"` for minor version updates
+- `sbt release` for major version updates

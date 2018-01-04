@@ -7,20 +7,11 @@ import scala.language.postfixOps
 name := "niffler"
 organization in ThisBuild := "com.roboxue"
 description := "Data flow programming paradigm library for Scala"
-developers := List(Developer("roboxue", "Robert Xue", "roboxue@roboxue.com", url("http://www.roboxue.com")))
 
 scalaVersion in ThisBuild := "2.11.8"
 crossScalaVersions in ThisBuild := Seq("2.11.8", "2.12.2")
 scalaModuleInfo := scalaModuleInfo.value map {
   _.withOverrideScalaVersion(true)
-}
-skip in publish := true
-publishTo in ThisBuild := {
-  val nexus = "https://oss.sonatype.org/"
-  if (isSnapshot.value)
-    Some("snapshots" at nexus + "content/repositories/snapshots")
-  else
-    Some("releases" at nexus + "service/local/staging/deploy/maven2")
 }
 
 lazy val core = nifflerProject("core", enablePublish = true)
@@ -82,12 +73,12 @@ lazy val commonSettings = Seq(
 // Publish and release settings
 lazy val noPublishSettings = Seq(skip in publish := true)
 lazy val publishSettings = Seq(
-  releaseCrossBuild := true,
   releasePublishArtifactsAction := PgpKeys.publishSigned.value,
 
   homepage := Some(url("https://github.com/roboxue/niffler")),
   licenses := Seq("Apache License, Version 2.0" -> url("https://www.apache.org/licenses/LICENSE-2.0.txt")),
   startYear := Some(2017),
+  developers := List(Developer("roboxue", "Robert Xue", "roboxue@roboxue.com", url("http://www.roboxue.com"))),
 
   pomIncludeRepository := { _ => false },
   publishMavenStyle := true,
@@ -95,19 +86,32 @@ lazy val publishSettings = Seq(
   scmInfo := {
     val base = "github.com/roboxue/niffler"
     Some(ScmInfo(url(s"https://$base"), s"scm:git:https://$base", Some(s"scm:git:git@$base")))
-  },
-  releaseProcess := Seq[ReleaseStep](
-    checkSnapshotDependencies,
-    inquireVersions,
-    runClean,
-    runTest,
-    setReleaseVersion,
-    commitReleaseVersion,
-    tagRelease,
-    releaseStepCommand("publishSigned"),
-    setNextVersion,
-    commitNextVersion,
-    releaseStepCommand("sonatypeReleaseAll"),
-    pushChanges
-  )
+  }
+)
+
+// Turn off publish for the root project
+skip in publish := true
+
+// Release settings for `sbt release`
+publishTo in ThisBuild := {
+  val nexus = "https://oss.sonatype.org/"
+  if (isSnapshot.value)
+    Some("snapshots" at nexus + "content/repositories/snapshots")
+  else
+    Some("releases" at nexus + "service/local/staging/deploy/maven2")
+}
+releaseCrossBuild := true
+releaseProcess := Seq[ReleaseStep](
+  checkSnapshotDependencies,
+  inquireVersions,
+  runClean,
+  runTest,
+  setReleaseVersion,
+  commitReleaseVersion,
+  tagRelease,
+  releaseStepCommand("publishSigned"),
+  setNextVersion,
+  commitNextVersion,
+  releaseStepCommand("sonatypeReleaseAll"),
+  pushChanges
 )
