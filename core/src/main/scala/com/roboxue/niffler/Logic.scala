@@ -17,7 +17,7 @@ import scala.concurrent.duration.Duration
 class Logic private (val name: String,
                      bindings: Map[Token[_], DirectImplementation[_]],
                      cachingPolicies: Map[Token[_], CachingPolicy]) {
-  private[niffler] val topology: DirectedAcyclicGraph[Token[_], DefaultEdge] = {
+  private[niffler] val dag: DirectedAcyclicGraph[Token[_], DefaultEdge] = {
     val g = new DirectedAcyclicGraph[Token[_], DefaultEdge](classOf[DefaultEdge])
     for ((token, impl) <- bindings) {
       Graphs.addIncomingEdges(g, token, impl.prerequisites)
@@ -76,11 +76,11 @@ class Logic private (val name: String,
   }
 
   def getPredecessors(token: Token[_]): Set[Token[_]] = {
-    Graphs.predecessorListOf(topology, token).toSet
+    Graphs.predecessorListOf(dag, token).toSet
   }
 
   def getSuccessors(token: Token[_]): Set[Token[_]] = {
-    Graphs.successorListOf(topology, token).toSet
+    Graphs.successorListOf(dag, token).toSet
   }
 
   /**
@@ -111,7 +111,7 @@ class Logic private (val name: String,
   def implForToken[T](token: Token[T]): DirectImplementation[T] =
     bindings(token).asInstanceOf[DirectImplementation[T]]
 
-  def tokensInvolved: Set[Token[_]] = topology.vertexSet().toSet
+  def tokensInvolved: Set[Token[_]] = dag.vertexSet().toSet
 
   def cachingPolicy(token: Token[_]): CachingPolicy = cachingPolicies.getOrElse(token, CachingPolicy.Forever)
 

@@ -2,10 +2,18 @@ package com.roboxue.niffler.monitoring
 
 import com.roboxue.niffler.execution._
 import com.roboxue.niffler.{AsyncExecution, Niffler, Token}
+import fs2.time.awakeEvery
+import fs2.{Scheduler, Sink, Strategy, Stream, Task}
 import io.circe.syntax._
 import io.circe.{Encoder, Json}
-import org.http4s.HttpService
+import org.http4s.circe.jsonEncoder
+import org.http4s.dsl._
+import org.http4s.server.websocket.WS
+import org.http4s.twirl._
+import org.http4s.websocket.WebsocketBits.{Text, WebSocketFrame}
+import org.http4s.{HttpService, Response}
 
+import scala.concurrent.duration._
 import scala.util.{Failure, Success}
 
 /**
@@ -14,64 +22,27 @@ import scala.util.{Failure, Success}
   */
 object ExecutionHistoryService extends Niffler with ServiceUtils {
   final val nifflerExecutionHistoryService: Token[HttpService] = Token("niffler execution history service")
-  final val nifflerExecutionHistoryServiceTitle: Token[String] = Token("service title")
-  final val nifflerExecutionHistoryServiceWrapper: Token[SubServiceWrapper] = Token("service wrapper")
+  final val nifflerExecutionHistoryServiceTitle: Token[String] = Token("execution history service title")
+  final val nifflerExecutionHistoryServiceWrapper: Token[SubServiceWrapper] = Token("execution history service wrapper")
 
   $$(nifflerExecutionHistoryServiceTitle.assign("Execution Service"))
 
   $$(nifflerExecutionHistoryService.dependsOn(nifflerExecutionHistoryServiceTitle) { (title) =>
-    import fs2.time.awakeEvery
-    import fs2.{Scheduler, Sink, Strategy, Stream, Task}
-    import org.http4s.circe.jsonEncoder
-    import org.http4s.dsl._
-    import org.http4s.server.websocket.WS
-    import org.http4s.twirl._
-    import org.http4s.websocket.WebsocketBits._
-
-    import scala.concurrent.duration._
-    implicit val scheduler: Scheduler = Scheduler.fromFixedDaemonPool(2)
-    implicit val strategy: Strategy = Strategy.fromFixedDaemonPool(8, threadName = "worker")
+    // thread pool used for socket streaming
+    val scheduler: Scheduler = Scheduler.fromFixedDaemonPool(2, threadName = "socket")
+    // thread pool used for calculating each frame in the socket stream
+    val strategy: Strategy = Strategy.fromFixedDaemonPool(8, threadName = "worker")
     HttpService {
       case GET -> Root =>
         Ok(html.nifflerExecutionHistory(title))
       case GET -> Root / "api" / "execution" / IntVar(executionId) =>
-        val (liveExecutions, pastExecutions, _) = Niffler.getHistory
-        (liveExecutions ++ pastExecutions).find(_.executionId == executionId) match {
-          case Some(execution) =>
-            jsonResponse(Ok(asyncExecutionDetailsToJson(execution).spaces2))
-          case None =>
-            NotFound()
-        }
+        apiGetExecutionStatus(executionId)
       case GET -> Root / "api" / "status" =>
-        val (liveExecutions, pastExecutions, capacityRemaining) = Niffler.getHistory
-        jsonResponse(
-          Ok(
-            Json.obj(
-              "liveExecutions" -> liveExecutions.asJson,
-              "pastExecutions" -> pastExecutions.reverse.asJson,
-              "remainingCapacity" -> capacityRemaining.asJson
-            )
-          )
-        )
+        apiGetNifflerStatus()
       case GET -> Root / "api" / "executionStream" / IntVar(executionId) =>
-        val (liveExecutions, pastExecutions, _) = Niffler.getHistory
-        (liveExecutions ++ pastExecutions).find(_.executionId == executionId) match {
-          case Some(execution) =>
-            val toClient: Stream[Task, WebSocketFrame] = Stream.emit(
-              Text(asyncExecutionDetailsToJson(execution).noSpaces)
-            ) ++ awakeEvery[Task](1.seconds).map { d =>
-              Text(asyncExecutionDetailsToJson(execution).noSpaces)
-            }.takeWhile(_ => {
-              !execution.promise.isCompleted
-            })
-            val discardClientMessages: Sink[Task, WebSocketFrame] = _.evalMap[Task, Task, Unit](_ => Task.delay(Unit))
-            WS(toClient, discardClientMessages)
-          case None =>
-            NotFound()
-        }
+        apiGetExecutionStatusAsStream(executionId)(scheduler, strategy)
       case POST -> Root / "api" / "storageCapacity" / IntVar(capacity) if capacity > 0 =>
-        Niffler.updateExecutionHistoryCapacity(capacity)
-        Ok()
+        apiUpdateCapacity(capacity)
     }
   })
 
@@ -83,6 +54,54 @@ object ExecutionHistoryService extends Niffler with ServiceUtils {
   )
 
   $$(NifflerMonitor.nifflerMonitorSubServices.amendWithToken(nifflerExecutionHistoryServiceWrapper))
+
+  private def apiGetExecutionStatus(executionId: Int): Task[Response] = {
+    val (liveExecutions, pastExecutions, _) = Niffler.getHistory
+    (liveExecutions ++ pastExecutions).find(_.executionId == executionId) match {
+      case Some(execution) =>
+        jsonResponse(Ok(asyncExecutionDetailsToJson(execution).spaces2))
+      case None =>
+        NotFound()
+    }
+  }
+
+  private def apiGetExecutionStatusAsStream(executionId: Int)(implicit scheduler: Scheduler,
+                                                              strategy: Strategy): Task[Response] = {
+    val (liveExecutions, pastExecutions, _) = Niffler.getHistory
+    (liveExecutions ++ pastExecutions).find(_.executionId == executionId) match {
+      case Some(execution) =>
+        val replyInitialStatus = Stream.emit(Text(asyncExecutionDetailsToJson(execution).noSpaces))
+        val toClient: Stream[Task, WebSocketFrame] = replyInitialStatus ++ awakeEvery[Task](1.seconds).map { _ =>
+          Text(asyncExecutionDetailsToJson(execution).noSpaces)
+        }.takeWhile(_ => {
+          !execution.promise.isCompleted
+        })
+        val discardClientMessages: Sink[Task, WebSocketFrame] = { (clientStream) =>
+          clientStream.evalMap[Task, Task, Unit](_ => Task.delay(Unit))
+        }
+        WS(toClient, discardClientMessages)
+      case None =>
+        NotFound()
+    }
+  }
+
+  private def apiGetNifflerStatus(): Task[Response] = {
+    val (liveExecutions, pastExecutions, capacityRemaining) = Niffler.getHistory
+    jsonResponse(
+      Ok(
+        Json.obj(
+          "liveExecutions" -> liveExecutions.asJson,
+          "pastExecutions" -> pastExecutions.reverse.asJson,
+          "remainingCapacity" -> capacityRemaining.asJson
+        )
+      )
+    )
+  }
+
+  private def apiUpdateCapacity(newCapacity: Int): Task[Response] = {
+    Niffler.updateExecutionHistoryCapacity(newCapacity)
+    Ok()
+  }
 
   implicit val tokenToJson: Encoder[Token[_]] = new Encoder[Token[_]] {
     override def apply(a: Token[_]): Json = {
@@ -142,7 +161,7 @@ object ExecutionHistoryService extends Niffler with ServiceUtils {
   private def asyncExecutionDetailsToJson: Encoder[AsyncExecution[_]] = new Encoder[AsyncExecution[_]] {
     override def apply(a: AsyncExecution[_]): Json = {
       val snapshot = a.getExecutionSnapshot
-      val tokensByLayer: Seq[Set[Token[_]]] = TopologyVertexRanker(snapshot.logic.topology, snapshot.tokenToEvaluate)
+      val tokensByLayer: Seq[Set[Token[_]]] = DagTopologySorter(snapshot.logic.dag, snapshot.tokenToEvaluate)
       asyncExecutionToJson(a).deepMerge({
         val ongoing = for ((token, startTime) <- snapshot.ongoing) yield {
           Json.obj("uuid" -> token.uuid.asJson, "status" -> "running".asJson, "startTime" -> startTime.asJson)
@@ -163,24 +182,19 @@ object ExecutionHistoryService extends Niffler with ServiceUtils {
                 Json.obj("uuid" -> token.uuid.asJson, "status" -> "cached".asJson)
             }
         })
-        Json.obj(
-          "targetToken" -> tokenToJson(snapshot.tokenToEvaluate),
-          "topology" -> (for (tokens <- tokensByLayer) yield {
-            val tokensJson = tokens
-              .map(t => {
-                val prerequisitesUuid = snapshot.logic.getPredecessors(t).map(d => d.uuid)
-                val cachingPolicy = snapshot.logic.cachingPolicy(t)
-                tokenToJson(t).deepMerge(
-                  Json
-                    .obj("prerequisites" -> prerequisitesUuid.asJson, "cachingPolicy" -> cachingPolicy.toString.asJson)
-                )
-              })
-              .asJson
-            Json.obj("tokens" -> tokensJson)
-          }).asJson,
-          "asOfTime" -> snapshot.asOfTime.asJson,
-          "timeline" -> (ongoing ++ finished).asJson
-        )
+        Json.obj("targetToken" -> tokenToJson(snapshot.tokenToEvaluate), "dag" -> (for (tokens <- tokensByLayer) yield {
+          val tokensJson = tokens
+            .map(t => {
+              val prerequisitesUuid = snapshot.logic.getPredecessors(t).map(d => d.uuid)
+              val cachingPolicy = snapshot.logic.cachingPolicy(t)
+              tokenToJson(t).deepMerge(
+                Json
+                  .obj("prerequisites" -> prerequisitesUuid.asJson, "cachingPolicy" -> cachingPolicy.toString.asJson)
+              )
+            })
+            .asJson
+          Json.obj("tokens" -> tokensJson)
+        }).asJson, "asOfTime" -> snapshot.asOfTime.asJson, "timeline" -> (ongoing ++ finished).asJson)
       })
     }
   }
