@@ -5,8 +5,22 @@
 
 ![niffler](https://78.media.tumblr.com/79cbce85198fb94f302ed8f7b47fa394/tumblr_inline_oivo7hMSOA1qbxxlx_500.gif)
 
-[![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.roboxue/niffler-core_2.11/badge.svg)](https://maven-badges.herokuapp.com/maven-central/com.roboxue/niffler-core_2.11)
 [![Build Status](https://travis-ci.org/roboxue/niffler.svg?branch=master)](https://travis-ci.org/roboxue/niffler)
+
+### Install
+published to Maven Central and cross-built for Scala 2.11 and 2.12, so you can just add the following to your build.sbt
+
+[![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.roboxue/niffler-core_2.11/badge.svg?subject=niffler_2.11)](https://maven-badges.herokuapp.com/maven-central/com.roboxue/niffler-core_2.11)  
+[![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.roboxue/niffler-core_2.12/badge.svg?subject=niffler_2.12)](https://maven-badges.herokuapp.com/maven-central/com.roboxue/niffler-core_2.12)  
+```sbtshell
+val nifflerVersion = "0.2.0" // for latest version see the badges above
+
+libraryDependencies ++= Seq(
+  "com.roboxue" %% "niffler-core",
+  "com.roboxue" %% "niffler-monitoring" // optional
+).map(_ % nifflerVersion)
+
+```
 
 **Niffler** is a [Dataflow programming](https://en.wikipedia.org/wiki/Dataflow_programming) library for Scala. 
 It's a set of lightweight DSL that encourages developer to write application logic in [Pure functions](https://en.wikipedia.org/wiki/Pure_function) 
@@ -20,9 +34,9 @@ By using Niffler, you can easily write app that
     - options to dump svg files for `Object` that extends `Niffler` trait
     - doc string are binded to `Token`, which means you don't have to repeatedly document your dependency/parameter list anymore
 - `self-monitor`
- - view the progress of this execution when the app is running
- - options to automatically log the execution time for each `Implementation` in the `Logic`
- - unhandled exceptions can be pin pointed out
+    - view the progress of this execution when the app is running
+    - options to automatically log the execution time for each `Implementation` in the `Logic`
+    - unhandled exceptions can be pin pointed out
 
 ### Basic concepts
 > Algorithms + Data Structures = Programs [Niklaus Wirth](https://en.wikipedia.org/wiki/Algorithms_%2B_Data_Structures_%3D_Programs)
@@ -87,6 +101,7 @@ Concurrent execution
 
 ##### Example 2
 Saving doc strings
+
 Niffler doesn't try to replace well designed scaladoc. By outputing DAG graph automatically, it aims to improve the documentation quality by reducing the "degree of freedom" for the docs.
 In the example below, becuase every `Token` being refereneced when writing niffler `Implementation` has been documented upon creation, we 'DRY'ed up two redudant doc strings.
 
@@ -128,13 +143,13 @@ After:
 
 ##### Example 3
 Automatical list the topology of the `Logic`, and record the execution time for each `Token` in the `Logic`
-![image](https://user-images.githubusercontent.com/4080835/34538517-4435f948-f092-11e7-8e43-01ae05dab71e.png)
+![image](https://user-images.githubusercontent.com/4080835/34626160-3d12bbfc-f221-11e7-9496-194b9c78d58c.png)
 
 Pin point where is the exception 
-![image](https://user-images.githubusercontent.com/4080835/34538479-224e6806-f092-11e7-80f6-c6e530abcdba.png)
+![image](https://user-images.githubusercontent.com/4080835/34626952-54d40392-f224-11e7-9e9a-6e14f59722d8.png)
 
 Live view of on going executions, know where it stucks, no maigc
-![image](https://user-images.githubusercontent.com/4080835/34538437-ff3d23d4-f091-11e7-8795-c741922ae0e5.png)
+![image](https://user-images.githubusercontent.com/4080835/34626898-287463a0-f224-11e7-9ab8-8750bb6846f7.png)
 
 ##### Housekeeping
 To release, make sure pgp key and sonatype credential is in the correct location, then execute 
