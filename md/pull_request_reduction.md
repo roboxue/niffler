@@ -41,7 +41,7 @@ In this way, new features can always be supported by new tokens and new implemen
 ### Detailed example
 Using an example of a simple project, I'd like to demonstrate how niffler helps reducing the size of the PR.
 
-* The source code using OOP is available at [here](https://github.com/roboxue/niffler/tree/306a8f5f97425a7c42e1435723284d1558ca76d3/example/src/main/scala/com/roboxue/niffler/examples/slimmer_pr_contorl)
+* The source code using OOP is available at [here](https://github.com/roboxue/niffler/tree/306a8f5f97425a7c42e1435723284d1558ca76d3/example/src/main/scala/com/roboxue/niffler/examples/slimmer_pr_control)
 * The source code using Niffler is available at [here](https://github.com/roboxue/niffler/tree/306a8f5f97425a7c42e1435723284d1558ca76d3/example/src/main/scala/com/roboxue/niffler/examples/slimmer_pr)
 * The diff list using OOP is [this commit](https://github.com/roboxue/niffler/commit/3a93e1b43c80add4d07a33650f326bd4078490f6)
 * The diff list using Niffler is [this commit](https://github.com/roboxue/niffler/commit/b2c1b54c4894e92b4cc1cd0992391e8a43e3961d)
