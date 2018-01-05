@@ -75,7 +75,11 @@
                                      style="width: 100%; height: 100%; position: static;"
                                      xmlns="http://www.w3.org/1999/xhtml">
                                     <div class="card-header text-truncate m-0 p-1">
-                                        {{layerId === 0 ? `ROOT: ${token.codeName}` : token.codeName}}
+                                        <template v-if="token === activeToken">
+                                            <span v-if="layerId === 0" class="badge badge-warning">Root</span>
+                                            <span v-else-if="token.prerequisites.length === 0" class="badge badge-success">Leaf</span>
+                                        </template>
+                                        {{token.codeName}}
                                     </div>
                                     <div class="card-body m-0 p-1">
                                         <h6 class="card-subtitle text-muted">{{token.returnType}}</h6>
@@ -116,11 +120,11 @@
       return {
         tokenWidth: 350,
         tokenHeight: 150,
-        tokenPaddingX: 50,
+        tokenPaddingX: 100,
         tokenPaddingY: 40,
         tokenTextPaddingX: 1,
         tokenTextPaddingY: 1,
-        svgWidth: 600,
+        svgWidth: 900,
         activeToken: undefined,
         svg: undefined
       }
@@ -179,9 +183,9 @@
         return (this.tokenPaddingY + this.tokenHeight) * this.tokenLookupTable[tokenUuid].index
       },
       lineBetweenToken: function (tokenUuid1, tokenUuid2) {
-        let point1 = [this.getTokenX(tokenUuid1) - 5, this.getTokenY(tokenUuid1) + this.tokenHeight * 2 / 3]
-        let point2 = [this.getTokenX(tokenUuid2) - 20, this.getTokenY(tokenUuid2) + this.tokenHeight / 3]
-        return `M${point1[0]},${point1[1]} C${point1[0] - 50},${point1[1]} ${point2[0] - 150},${point2[1]} ${point2[0]},${point2[1]}`
+        let point1 = [this.getTokenX(tokenUuid1) - 30, this.getTokenY(tokenUuid1) + this.tokenHeight * 2 / 3]
+        let point2 = [this.getTokenX(tokenUuid2) - 5, this.getTokenY(tokenUuid2) + this.tokenHeight / 3]
+        return `M${point2[0]},${point2[1]} C${point2[0] - 150},${point2[1]} ${- 100},${point1[1]} ${point1[0]},${point1[1]}`
       },
       tokenExecutionDuration: function (tokenUuid) {
         let token = this.tokenLookupTable[tokenUuid]
