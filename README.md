@@ -1,10 +1,12 @@
 # Niffler: Dataflow programming for Scala
-
 <strong>Self optimize, Self document, Self monitor</strong>
 
 > "Let's be greedy" 
 
 ![niffler](https://78.media.tumblr.com/79cbce85198fb94f302ed8f7b47fa394/tumblr_inline_oivo7hMSOA1qbxxlx_500.gif)
+
+[![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.roboxue/niffler-core_2.11/badge.svg)](https://maven-badges.herokuapp.com/maven-central/com.roboxue/niffler-core_2.11)
+[![Build Status](https://travis-ci.org/roboxue/niffler.svg?branch=master)](https://travis-ci.org/roboxue/niffler)
 
 **Niffler** is a [Dataflow programming](https://en.wikipedia.org/wiki/Dataflow_programming) library for Scala. 
 It's a set of lightweight DSL that encourages developer to write application logic in [Pure functions](https://en.wikipedia.org/wiki/Pure_function) 
