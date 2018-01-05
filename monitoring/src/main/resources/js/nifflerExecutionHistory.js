@@ -8,7 +8,7 @@ requirejs.config({
   }
 })
 
-requirejs(['vue!executionHistoryService', 'vue!historyExecution', 'vue!logicTopology'], function () {
+requirejs(['vue!executionHistoryService', 'vue!historyExecution', 'vue!logicDag'], function () {
   const app = new Vue({
     el: '#app',
   })

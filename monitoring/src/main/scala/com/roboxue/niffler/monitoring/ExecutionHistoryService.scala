@@ -161,7 +161,7 @@ object ExecutionHistoryService extends Niffler with ServiceUtils {
   private def asyncExecutionDetailsToJson: Encoder[AsyncExecution[_]] = new Encoder[AsyncExecution[_]] {
     override def apply(a: AsyncExecution[_]): Json = {
       val snapshot = a.getExecutionSnapshot
-      val tokensByLayer: Seq[Set[Token[_]]] = TopologyVertexRanker(snapshot.logic.topology, snapshot.tokenToEvaluate)
+      val tokensByLayer: Seq[Set[Token[_]]] = DagTopologySorter(snapshot.logic.dag, snapshot.tokenToEvaluate)
       asyncExecutionToJson(a).deepMerge({
         val ongoing = for ((token, startTime) <- snapshot.ongoing) yield {
           Json.obj("uuid" -> token.uuid.asJson, "status" -> "running".asJson, "startTime" -> startTime.asJson)
@@ -182,24 +182,19 @@ object ExecutionHistoryService extends Niffler with ServiceUtils {
                 Json.obj("uuid" -> token.uuid.asJson, "status" -> "cached".asJson)
             }
         })
-        Json.obj(
-          "targetToken" -> tokenToJson(snapshot.tokenToEvaluate),
-          "topology" -> (for (tokens <- tokensByLayer) yield {
-            val tokensJson = tokens
-              .map(t => {
-                val prerequisitesUuid = snapshot.logic.getPredecessors(t).map(d => d.uuid)
-                val cachingPolicy = snapshot.logic.cachingPolicy(t)
-                tokenToJson(t).deepMerge(
-                  Json
-                    .obj("prerequisites" -> prerequisitesUuid.asJson, "cachingPolicy" -> cachingPolicy.toString.asJson)
-                )
-              })
-              .asJson
-            Json.obj("tokens" -> tokensJson)
-          }).asJson,
-          "asOfTime" -> snapshot.asOfTime.asJson,
-          "timeline" -> (ongoing ++ finished).asJson
-        )
+        Json.obj("targetToken" -> tokenToJson(snapshot.tokenToEvaluate), "dag" -> (for (tokens <- tokensByLayer) yield {
+          val tokensJson = tokens
+            .map(t => {
+              val prerequisitesUuid = snapshot.logic.getPredecessors(t).map(d => d.uuid)
+              val cachingPolicy = snapshot.logic.cachingPolicy(t)
+              tokenToJson(t).deepMerge(
+                Json
+                  .obj("prerequisites" -> prerequisitesUuid.asJson, "cachingPolicy" -> cachingPolicy.toString.asJson)
+              )
+            })
+            .asJson
+          Json.obj("tokens" -> tokensJson)
+        }).asJson, "asOfTime" -> snapshot.asOfTime.asJson, "timeline" -> (ongoing ++ finished).asJson)
       })
     }
   }

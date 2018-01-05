@@ -21,7 +21,7 @@ case class NifflerEvaluationException(override val snapshot: ExecutionSnapshot,
   setStackTrace(exception.getStackTrace)
 
   def getPaths: Seq[GraphPath[Token[_], DefaultEdge]] = {
-    new AllDirectedPaths(snapshot.logic.topology)
+    new AllDirectedPaths(snapshot.logic.dag)
       .getAllPaths(tokenWithException, snapshot.tokenToEvaluate, true, null)
       .toSeq
   }

@@ -48,9 +48,9 @@
                     <i class="fa fa-spinner fa-spin" v-show="socket && socket.readyState === 1"></i>
                     As of {{new Date(activeExecution.asOfTime).toISOString()}} ({{activeExecution.asOfTime}})
                 </h3>
-                <logic-topology v-if="activeExecution"
-                                :model="activeExecution"
-                ></logic-topology>
+                <logic-dag v-if="activeExecution"
+                           :model="activeExecution"
+                />
             </div>
         </div>
     </div>
@@ -94,7 +94,7 @@
           if (exe.state === 'live') {
             this.loadSingleExecutionStream(executionId)
           } else {
-            this.loadSingleExecutionTopology(executionId)
+            this.loadSingleExecutionDag(executionId)
           }
         }
       },
@@ -125,12 +125,12 @@
         })
         newSocket.addEventListener('close', function () {
           vm.loadExecutionHistory()
-          vm.loadSingleExecutionTopology(executionId)
+          vm.loadSingleExecutionDag(executionId)
           vm.socket = null
         })
         vm.socket = newSocket
       },
-      loadSingleExecutionTopology: function (executionId) {
+      loadSingleExecutionDag: function (executionId) {
         let vm = this
         axios.get(window.location.pathname + `/api/execution/${executionId}`)
           .then(function (response) {
@@ -138,7 +138,7 @@
           })
           .catch(function (error) {
             vm.activeExecution = undefined
-            errorHandling(error, vm, 'get execution topology')
+            errorHandling(error, vm, 'get execution dag')
           })
       }
     },
@@ -146,6 +146,30 @@
       this.loadExecutionHistory()
     }
   })
+
+  function errorHandling (error, vm, occasion) {
+    if (error.response) {
+      vm.errorMessage = {
+        message: error.response.data,
+        status: error.response.status,
+        occasion: occasion
+      }
+    } else if (error.request) {
+      vm.errorMessage = {
+        message: 'no response received',
+        status: 'n/a',
+        occasion: occasion
+      }
+    } else {
+      vm.errorMessage = {
+        message: error.message,
+        status: 'n/a',
+        occasion: occasion
+      }
+    }
+    vm.alertVisible = true
+  }
+
 </script>
 
 <style scoped>

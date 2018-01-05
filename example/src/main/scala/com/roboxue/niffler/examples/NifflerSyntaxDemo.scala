@@ -15,6 +15,9 @@ object NifflerSyntaxDemo {
   //noinspection SimplifyBoolean
   def main(args: Array[String]): Unit =
     try {
+      // Start the niffler monitor UI so we can check the execution status right away
+      Niffler.combine(NifflerMonitor, ExecutionHistoryService).syncRun(NifflerMonitor.nifflerMonitorStartServer)
+      // let's open http://localhost:4080/history to view all the operation we have done!
 
       // Token[T] is the base unit of "data".
       val email: Token[String] = Token("user email")
@@ -52,21 +55,15 @@ object NifflerSyntaxDemo {
       val loginImplementation4: Implementation[Boolean] = login.dependsOn(email, password)(alwaysSuccessfulLogin)
 
       // Niffler is a collection of implementations.
-      import com.roboxue.niffler.Niffler
       // Niffler is a trait, usually you'll create an Object to extend Niffler to provide static reference to tokens
       // Niffler provides grammar sugars to easily add implementations
       object NifflerDemo extends Niffler {
-        // create token in this object so that they can be statically referenced
-        val nEmail: Token[String] = Token("user email")
-        val nPassword: Token[String] = Token("user password")
-        val nLogin: Token[Boolean] = Token("attempt to login")
         // use protected method addImpl to add implementation to niffler. This ensures niffler is immutable upon creation
-        addImpl(nLogin.dependsOn(nEmail, nPassword)({ (email, password) =>
-          email == password
-        }))
+        addImpl(loginImplementation4)
         // $$ works as well if you don't want to type 'addImpl'
-        // implementation for the same token will override existing implementation
-        $$(nLogin.dependsOn(nEmail, nPassword)({ (email, password) =>
+        // implementation for the same token will override existing implementation,
+        // thus loginImplementation4 has been overridden by the following implementation, since they all implements `login`
+        $$(login.dependsOn(email, password)({ (email, password) =>
           email == password
         }))
       }
@@ -74,71 +71,70 @@ object NifflerSyntaxDemo {
       // Logic is an immutable collection of implementation similar to Niffler. In fact any niffler can be output to a logic
       val logic1: Logic = NifflerDemo.getLogic
       // you can certainly query logic for implementation, although this is no a popular use case
-      assert(logic1.implForToken(NifflerDemo.nLogin) != null)
-      // logic one to one maps to a DAG
-      assert(logic1.topology.isInstanceOf[DirectedAcyclicGraph[Token[_], DefaultEdge]])
+      assert(logic1.implForToken(login) != null)
+      // logic one to one maps to a DAG. This line doesn't work outside
+      assert(logic1.dag.isInstanceOf[DirectedAcyclicGraph[Token[_], DefaultEdge]])
       // this is how you invoke the evaluation of a token from a logic / niffler
-      val r1 = Try(logic1.syncRun(NifflerDemo.nLogin))
+      val r1 = Try(logic1.syncRun(login))
       // niffler is a logic, so the same syntax applies
-      val r2 = Try(NifflerDemo.syncRun(NifflerDemo.nLogin))
-      // r1 and r2 is going to fail because there is no impl for nEmail and nPassword, so eval of nLogin cannot proceed
+      val r2 = Try(NifflerDemo.syncRun(login))
+      // r1 and r2 is going to fail because there is no impl for email and password, so eval of login cannot proceed
       // this is almost identical to NullPointerExceptions when calling a normal function and provide null for parameters
       assert(r1.failed.get.isInstanceOf[NifflerInvocationException])
       // we can provide the missing impl when invoking the logic
-      val r3 = Try(
-        NifflerDemo.syncRun(
-          NifflerDemo.nLogin,
-          Seq(NifflerDemo.nEmail.assign("roboxue@roboxue.com"), NifflerDemo.nPassword.assign("password"))
-        )
-      )
+      val r3 = Try(NifflerDemo.syncRun(login, Seq(email.assign("roboxue@roboxue.com"), password.assign("password"))))
       // now we shall fail the login
       assert(r3.isSuccess)
-      val ExecutionResult(result, _, _) = r3.get
-      assert(result == false)
-      // we can even inject a new implementation to nLogin to force a successful login
+      val ExecutionResult(result3, _, _) = r3.get
+      assert(result3 == false)
+      // because in NifflerDemo, the login impl is `email == password`, the following shall yeild true
+      val r4 =
+        NifflerDemo.syncRun(login, Seq(email.assign("roboxue@roboxue.com"), password.assign("roboxue@roboxue.com")))
+      val ExecutionResult(result4, _, _) = r4
+      assert(result4 == true)
+      // we can also inject a new implementation to login to force a successful login
       // this is equivalent to a runtime override
       assert(
         NifflerDemo
-          .syncRun(
-            NifflerDemo.nLogin,
-            Seq(
-              NifflerDemo.nEmail.assign("roboxue@roboxue.com"),
-              NifflerDemo.nPassword.assign("password"),
-              NifflerDemo.nLogin.dependsOn(NifflerDemo.nEmail, NifflerDemo.nPassword)(alwaysSuccessfulLogin)
-            )
-          )
+          .syncRun(login, Seq(email.assign("roboxue@roboxue.com"), password.assign("password"), loginImplementation4))
           .result == true
       )
-      // more powerful than an override, this can change the dependency list as well
-      assert(NifflerDemo.syncRun(NifflerDemo.nLogin, Seq(NifflerDemo.nLogin.assign(true))).result == true)
+      // more powerful than an override, this can change the dependency list as well.
+      // Previously you need both email and password to login, now you can ignore password field
+      assert(
+        NifflerDemo
+          .syncRun(login, Seq(email.assign("foo@roboxue.com"), login.dependsOn(email) { email =>
+            email.contains("roboxue.com")
+          }))
+          .result == true
+      )
       // logic.diverge do the same thing
-      val logic2: Logic = NifflerDemo.diverge(Seq(NifflerDemo.nLogin.assign(true)))
-      assert(logic2.syncRun(NifflerDemo.nLogin).result == true)
+      val logic2: Logic = NifflerDemo.diverge(Seq(login.dependsOn(email) { email =>
+        email.contains("roboxue.com")
+      }))
+      assert(Try(NifflerDemo.syncRun(login, Seq(email.assign("bar@roboxue.com")))).isSuccess == false)
+      assert(logic2.syncRun(login, Seq(email.assign("bar@roboxue.com"))).result == true)
 
       // ExecutionCache is where the data being stored
       val ExecutionResult(_, _, cacheOfR3) = r3.get
       cacheOfR3.isInstanceOf[ExecutionCache]
       // You can query the cache for sure, and it is type safe
-      assert(cacheOfR3(NifflerDemo.nEmail) == "roboxue@roboxue.com")
-      assert(cacheOfR3(NifflerDemo.nPassword) == "password")
+      assert(cacheOfR3(email) == "roboxue@roboxue.com")
+      assert(cacheOfR3(password) == "password")
       // cache can be reused,
-      // although nLogin depends on nEmail & nPassword which has no impl, they do exist in the cache.
+      // although login depends on email & password which has no impl, they do exist in the cache.
       // So the eval is still successful
-      assert(NifflerDemo.syncRun(NifflerDemo.nLogin, cache = cacheOfR3).result == false)
+      assert(NifflerDemo.syncRun(login, cache = cacheOfR3).result == false)
       // and here is a complete example where you invoke the eval of a token use a prepackaged NifflerDemo
       // with extra override and a non-empty cache
       assert(
         NifflerDemo
-          .syncRun(NifflerDemo.nLogin, extraImpl = Seq(NifflerDemo.nLogin.dependsOn(NifflerDemo.nPassword) {
-            _ == "password"
-          }), cache = cacheOfR3)
+          .syncRun(login, extraImpl = Seq(login.dependsOn(password) { _ == "password" }), cache = cacheOfR3)
           .result == true
       )
-      Niffler.combine(NifflerMonitor, ExecutionHistoryService).syncRun(NifflerMonitor.nifflerMonitorStartServer)
-      // let's open http://localhost:4080/history to view all the operation we have done!
     } finally {
       // always call Niffler.terminate to stop the akka system that is backing it.
-      // unless in this demo I want this to be a daemon instance
-      // Niffler.terminate()
+      // unless you want this to be a daemon instance (i.e. running a server)
+      Niffler.terminate()
     }
 }

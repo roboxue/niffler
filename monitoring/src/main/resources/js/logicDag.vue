@@ -1,5 +1,5 @@
 <template>
-    <div style="width: 100%; height: 100%; max-height: 900px">
+    <div style="width: 100%; height: 100%; max-height: 1200px">
         <div class="card">
             <div class="card-header">Token View</div>
             <div class="card-body" v-if="activeToken !== undefined">
@@ -48,14 +48,14 @@
                     height: inherit; min-height: inherit; max-height: inherit; "
              :width="svgWidth"
              :height="svgHeight"
-             id="topologyLayout">
+             id="dagLayout">
             <defs>
                 <marker id="arrow" markerWidth="10" markerHeight="10" refX="0" refY="3" orient="auto" markerUnits="strokeWidth">
                     <path d="M0,0 L0,6 L9,3 z" fill="#2c3e50" />
                 </marker>
             </defs>
             <g class="layers">
-                <g v-for="(layer, layerId) in model.topology"
+                <g v-for="(layer, layerId) in model.dag"
                    :key="layerId">
                     <g v-for="(token) in layer.tokens"
                        style="cursor: pointer"
@@ -114,7 +114,7 @@
 </template>
 
 <script>
-  Vue.component('logic-topology', {
+  Vue.component('logic-dag', {
     props: ['model'],
     data: function () {
       return {
@@ -133,7 +133,7 @@
       tokenLookupTable: function () {
         let lookup = {}
         let index = 0
-        this.model.topology.forEach((layer) => {
+        this.model.dag.forEach((layer) => {
           layer.tokens.forEach((token) => {
             token.index = index
             index++
@@ -148,7 +148,7 @@
             lookup[token.uuid].completeTime = token.completeTime
           }
         })
-        this.model.topology.forEach((layer) => {
+        this.model.dag.forEach((layer) => {
           layer.tokens.forEach((token) => {
             token.prerequisites.forEach((pre) => {
               if (lookup.hasOwnProperty(pre) && !lookup[pre].successors.includes(token.uuid)) {
@@ -172,7 +172,7 @@
         return (this.svgWidth - this.tokenWidth) / this.tokenPaddingX + 1
       },
       svgHeight: function () {
-        return this.tokenLookupTable.length * (this.tokenHeight + this.tokenPaddingY) - this.tokenPaddingY
+        return Object.keys(this.tokenLookupTable).length * (this.tokenHeight + this.tokenPaddingY) - this.tokenPaddingY
       }
     },
     methods: {
@@ -240,7 +240,7 @@
     },
     template: template,
     mounted: function () {
-      this.svg = svgPanZoom('#topologyLayout', {
+      this.svg = svgPanZoom('#dagLayout', {
         controlIconsEnabled: true,
         fit: false,
         minZoom: 0.2

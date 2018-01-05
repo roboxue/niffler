@@ -10,7 +10,7 @@ import scala.collection.mutable.ListBuffer
   * @author rxue
   * @since 12/28/17.
   */
-object TopologyVertexRanker {
+object DagTopologySorter {
   def apply[V, E](graph: DirectedAcyclicGraph[V, E], startFrom: V): Seq[Set[V]] = {
     import scala.collection.JavaConversions._
     if (!graph.containsVertex(startFrom)) {
