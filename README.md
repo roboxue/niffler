@@ -1,12 +1,16 @@
 Niffler: Dataflow programming for Scala
 ----
+[![Build Status](https://travis-ci.org/roboxue/niffler.svg?branch=master)](https://travis-ci.org/roboxue/niffler)
+
 <strong>Self optimize, Self document, Self monitor</strong>
 
-> "Let's be greedy" 
+**Niffler** is a made-up "Magic creature" in Harry Porter series. It was featured in the recent movie *Fantastic Beasts and Where to Find Them*. It's essentially a "wallet" that knows how to fill itself up... I'm naming after this library based on Niffler's nature as a container of Token, and a symbol of "greedy" for a better developer experience (we know greedy is no a bad word in computer science)
+
+> "Nifflers had a pouch on their bellies which held far more than at first seemed possible, like the effects of an Undetectable Extension Charm on a container."
 
 ![niffler](https://78.media.tumblr.com/79cbce85198fb94f302ed8f7b47fa394/tumblr_inline_oivo7hMSOA1qbxxlx_500.gif)
 
-[![Build Status](https://travis-ci.org/roboxue/niffler.svg?branch=master)](https://travis-ci.org/roboxue/niffler)
+> "It's time to be greedy"  
 
 ## Install
 published to Maven Central and cross-built for Scala 2.11 and 2.12, so you can just add the following to your build.sbt
@@ -14,7 +18,7 @@ published to Maven Central and cross-built for Scala 2.11 and 2.12, so you can j
 [![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.roboxue/niffler-core_2.11/badge.svg?subject=niffler_2.11)](https://maven-badges.herokuapp.com/maven-central/com.roboxue/niffler-core_2.11)  
 [![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.roboxue/niffler-core_2.12/badge.svg?subject=niffler_2.12)](https://maven-badges.herokuapp.com/maven-central/com.roboxue/niffler-core_2.12)  
 ```sbtshell
-val nifflerVersion = "0.2.0" // for latest version see the badges above
+val nifflerVersion = "0.2.1" // for latest version see the badges above
 
 libraryDependencies ++= Seq(
   "com.roboxue" %% "niffler-core",
@@ -40,7 +44,7 @@ Thanks to the nature of Data flow programming, there is some obvious benefits yo
 
 #### Self Documentation
 More than the programming paradigm, Niffler has great operation utilities!
-- Visualize your code base as a DAG: Thanks to the nature of Data flow programming, it's very easy to visualize your codebase
+- Visualize your code base as a DAG: Thanks to the nature of Data flow programming, it's straight forward to visualize your codebase
 > A traditional program is usually represented as a series of text instructions  
   (However) the flow of data is explicit, often visually illustrated as a line or pipe.
 - Opportunity to dump svg files at compile time. 
@@ -59,25 +63,28 @@ Application monitoring and benchmarking becomes extremely easy using Niffler. Yo
 * `Logic` is the core part of Niffler, implemented as a HashMap, where the key is a `Token` and value is a `Formula`
 * `Token[T]` is the description and metadata of a data, similar to "A variable declaration with documentation string"
 * `Formula[T]` is a wrapper of function `(D1, D2, D3.., Dn) => T`, plus a sequence of `Token` as prerequisites,  
-  and they has to be of type `Token[D1], Token[D2], Token[D3], ..., Token[Dn]`
+  and they have to be of type `Token[D1], Token[D2], Token[D3], ..., Token[Dn]`
 * `DataFlowOperation` is a pair of `Token` and `Formula`. Thus `Logic` can also be viewed as a collection of `DataFlowOperation`. Treat `DataFlowOperation` as "sentences" in other language as the base unit that will be evaluated in runtime
 
 ##### Running code
 * `ExecutionCache` is a HashMap, where the key is a `Token[SomeType]` and value being `data: SomeType`
 * `Logic` can be asked to evaluate `Token` in an `ExecutionCache` sequentially (single thread illusion provided by underlying akka implementation)
-* On evaluating a `Token`, the runtime will first if `ExecutionCache` contains this token or not.
-  If hit, the cache result will be returned
-  Else when miss, runtime will lookup `Logic` for this `Token`'s `Formula`, 
+* On evaluating a `Token`, the runtime will first check if `ExecutionCache` contains this token or not.  
+  If hit, the cache result will be returned  
+  Else when miss, runtime will lookup `Logic` for this `Token`'s `Formula`,
   then trigger the execution of this `Formula`'s prerequisite tokens in parallel and recursively.
   The `Formula`'s underlying function will be executed whenever its prerequisites has been met.
-  The result will be written to `ExecutionCache` using the token it binds to as the key 
+  The result will be written back to `ExecutionCache` using the token it binds to as the key
 * `Execution` can be triggered either synchronously or asynchronously.  
   Sync trigger will return an `ExecutionResult[T]`;  
-  Async trigger will return an `AsyncExecution[T]`, basically a wrapper around `Promise[T]` 
+  Async trigger will return an `AsyncExecution[T]`, basically a wrapper around `Promise[ExecutionResult[T]]` 
 
 ##### Organizing code
 * `Niffler` is a trait that has a private collection of `DataFlowOperation`, with helper functions to add new `DataFlowOperation` into this collection 
-* `Nifller` being a collection of `DataFlowOperation`, can be dumped or merged into a `Logic`
+* `Nifller`, being a collection of `DataFlowOperation`, can be converted directly into a `Logic`. You can also combine a few Nifflers to make a unioned `Logic`
+
+![niffler](https://vignette.wikia.nocookie.net/harrypotter/images/2/2e/Niffler_gold.gif/revision/latest/scale-to-width-down/235?cb=20170516221338)
+> ^^ A `niffler` whose collection of `DataFlowOperation`s is being dumped into a `Logic`
 
 ##### Tutorial
 see [NifflerSyntaxDemo.scala](example/src/main/scala/com/roboxue/niffler/examples/NifflerSyntaxDemo.scala)
