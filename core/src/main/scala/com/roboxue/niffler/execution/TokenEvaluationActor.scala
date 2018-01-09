@@ -1,7 +1,7 @@
 package com.roboxue.niffler.execution
 
 import akka.actor.{Actor, Props}
-import com.roboxue.niffler.{DirectImplementation, ExecutionCache, Token}
+import com.roboxue.niffler.{RegularOperation, ExecutionCache, Token}
 
 import scala.util.Try
 
@@ -10,12 +10,12 @@ import scala.util.Try
   * @author rxue
   * @since 12/18/17.
   */
-class TokenEvaluationActor[T](token: Token[T], impl: DirectImplementation[T]) extends Actor {
+class TokenEvaluationActor[T](token: Token[T], impl: RegularOperation[T]) extends Actor {
   override def receive: Receive = {
     case TokenEvaluationActor.Evaluate(executionCache) =>
       // use blocking here to indicate a potential very long process
       val result = scala.concurrent.blocking {
-        Try(impl.eval(executionCache))
+        Try(impl.formula(executionCache))
       }
       sender() ! TokenEvaluationActor.EvaluateComplete(token, result)
   }
@@ -27,7 +27,7 @@ object TokenEvaluationActor {
 
   case class EvaluateComplete[T](token: Token[T], result: Try[T])
 
-  def props[T](token: Token[T], impl: DirectImplementation[T]): Props = {
+  def props[T](token: Token[T], impl: RegularOperation[T]): Props = {
     Props(new TokenEvaluationActor(token, impl))
   }
 

@@ -1,6 +1,6 @@
 package com.roboxue.niffler.examples.slimmer_pr
 
-import com.roboxue.niffler.{Implementation, Niffler, Token}
+import com.roboxue.niffler.{DataFlowOperation, Niffler, Token}
 
 /**
   * @author rxue
@@ -10,13 +10,13 @@ trait EngineBase {
   this: Niffler =>
   import EngineBase._
   final val scoreDoc: Token[Int] = Token("a score between 0 and 100 where 100 means most similar")
-  protected def scoreDocImpl: Implementation[Int]
-  addImpl(scoreDocImpl)
+  protected def scoreDocImpl: DataFlowOperation[Int]
+  addLogicPart(scoreDocImpl)
 
-  addImpl(file1.dependsOn(parsedArgs) { _.file1 })
-  addImpl(file2.dependsOn(parsedArgs) { _.file2 })
-  addImpl(stemmer.dependsOn(parsedArgs) { _.stemmer })
-  addImpl(parsedArgs.dependsOn(Niffler.argv) { (args) =>
+  addLogicPart(file1.dependsOn(parsedArgs) { _.file1 })
+  addLogicPart(file2.dependsOn(parsedArgs) { _.file2 })
+  addLogicPart(stemmer.dependsOn(parsedArgs) { _.stemmer })
+  addLogicPart(parsedArgs.dependsOn(Niffler.argv) { (args) =>
     new ArgsUtils(args)
   })
 }

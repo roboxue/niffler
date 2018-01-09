@@ -3,7 +3,7 @@ package com.roboxue.niffler.examples
 import com.roboxue.niffler._
 import com.roboxue.niffler.execution.NifflerInvocationException
 import com.roboxue.niffler.monitoring.{ExecutionHistoryService, NifflerMonitor}
-import org.jgrapht.graph.{DefaultEdge, DirectedAcyclicGraph}
+import com.roboxue.niffler.syntax.Requires
 
 import scala.util.Try
 
@@ -29,22 +29,21 @@ object NifflerSyntaxDemo {
       assert(email.codeName == "email")
       assert(email.returnTypeDescription == "String")
 
-      // Implementation[T] is the base unit of "algorithm/function". It guaranteed to yield `T` upon evaluation
+      // DataFlowOperation[T] is the base unit of "algorithm/function". It guaranteed to yield `T` upon evaluation
       // It takes two parameters to construct
       // the first param is the list of `Token` it depends on
       // the second param is a lambda function to use the return values of dependencies and yield a `T`
-      val loginImplementation1: Implementation[Boolean] =
+      val logicPart1: DataFlowOperation[Boolean] =
         login.dependsOn(email, password)({ (email: String, password: String) =>
           true
         })
       // the type signature in the lambda function in the example above can be ignored
-      val loginImplementation2: Implementation[Boolean] = login.dependsOn(email, password)({ (email, password) =>
+      val logicPart2: DataFlowOperation[Boolean] = login.dependsOn(email, password)({ (email, password) =>
         true
       })
       // the param name in the lambda function can be anything you like
-      val loginImplementation3: Implementation[Boolean] = login.dependsOn(email, password)({
-        (userEmail, userPassword) =>
-          userEmail == userPassword
+      val logicPart3: DataFlowOperation[Boolean] = login.dependsOn(email, password)({ (userEmail, userPassword) =>
+        userEmail == userPassword
       })
 
       // a pure function can be provided instead of a lambda function
@@ -52,28 +51,32 @@ object NifflerSyntaxDemo {
         true
       }
 
-      val loginImplementation4: Implementation[Boolean] = login.dependsOn(email, password)(alwaysSuccessfulLogin)
+      val logicPart4: DataFlowOperation[Boolean] = login.dependsOn(email, password)(alwaysSuccessfulLogin)
 
-      // Niffler is a collection of implementations.
+      // another way to create a DataFlowOperation is by creating formula
+      val formula: Formula[Boolean] = Requires(email, password)(alwaysSuccessfulLogin)
+      val logicPart5: DataFlowOperation[Boolean] = login.dependsOnFormula(formula)
+      // := is dependsOnFormula's alias
+      val logicPart6: DataFlowOperation[Boolean] = login := formula
+
+      // Niffler is a collection of LogicParts.
       // Niffler is a trait, usually you'll create an Object to extend Niffler to provide static reference to tokens
-      // Niffler provides grammar sugars to easily add implementations
+      // Niffler provides grammar sugars to easily add LogicParts
       object NifflerDemo extends Niffler {
-        // use protected method addImpl to add implementation to niffler. This ensures niffler is immutable upon creation
-        addImpl(loginImplementation4)
-        // $$ works as well if you don't want to type 'addImpl'
-        // implementation for the same token will override existing implementation,
-        // thus loginImplementation4 has been overridden by the following implementation, since they all implements `login`
+        // use protected method addLogicPart to add DataFlowOperation to niffler. This ensures niffler is immutable upon creation
+        addLogicPart(logicPart4)
+        // $$ works as well if you don't want to type 'addLogicPart'
+        // DataFlowOperation for the same token will override existing DataFlowOperation,
+        // thus logicPart4 has been overridden by the following DataFlowOperation, since they all implements `login`
         $$(login.dependsOn(email, password)({ (email, password) =>
           email == password
         }))
       }
 
-      // Logic is an immutable collection of implementation similar to Niffler. In fact any niffler can be output to a logic
+      // Logic is an immutable collection of DataFlowOperation similar to Niffler. In fact any niffler can be output to a logic
       val logic1: Logic = NifflerDemo.getLogic
-      // you can certainly query logic for implementation, although this is no a popular use case
+      // you can certainly query logic for DataFlowOperation, although this is no a popular use case
       assert(logic1.implForToken(login) != null)
-      // logic one to one maps to a DAG. This line doesn't work outside
-      assert(logic1.dag.isInstanceOf[DirectedAcyclicGraph[Token[_], DefaultEdge]])
       // this is how you invoke the evaluation of a token from a logic / niffler
       val r1 = Try(logic1.syncRun(login))
       // niffler is a logic, so the same syntax applies
@@ -81,22 +84,23 @@ object NifflerSyntaxDemo {
       // r1 and r2 is going to fail because there is no impl for email and password, so eval of login cannot proceed
       // this is almost identical to NullPointerExceptions when calling a normal function and provide null for parameters
       assert(r1.failed.get.isInstanceOf[NifflerInvocationException])
+      assert(r2.failed.get.isInstanceOf[NifflerInvocationException])
       // we can provide the missing impl when invoking the logic
       val r3 = Try(NifflerDemo.syncRun(login, Seq(email.assign("roboxue@roboxue.com"), password.assign("password"))))
       // now we shall fail the login
       assert(r3.isSuccess)
       val ExecutionResult(result3, _, _) = r3.get
       assert(result3 == false)
-      // because in NifflerDemo, the login impl is `email == password`, the following shall yeild true
+      // because in NifflerDemo, the login impl is `email == password`, the following shall yields true
       val r4 =
         NifflerDemo.syncRun(login, Seq(email.assign("roboxue@roboxue.com"), password.assign("roboxue@roboxue.com")))
       val ExecutionResult(result4, _, _) = r4
       assert(result4 == true)
-      // we can also inject a new implementation to login to force a successful login
+      // we can also inject a new DataFlowOperation to login to force a successful login
       // this is equivalent to a runtime override
       assert(
         NifflerDemo
-          .syncRun(login, Seq(email.assign("roboxue@roboxue.com"), password.assign("password"), loginImplementation4))
+          .syncRun(login, Seq(email.assign("roboxue@roboxue.com"), password.assign("password"), logicPart4))
           .result == true
       )
       // more powerful than an override, this can change the dependency list as well.
