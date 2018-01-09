@@ -45,12 +45,12 @@ object CodeGenTokenSyntax {
     })
   }
 
-  def requiresCodeGen(length: Int): Tree = {
+  def requiresApplyCodeGen(length: Int): Tree = {
     val range = Range(1, length + 1).toList
-    q"""def requires[..${typeParameters(range)}, T]
+    q"""def apply[..${typeParameters(range)}, T]
           (..${tokenParameters(range)})
-          (f: (..${functionTypeParameter(range)}) => T): TokenEvaluation[T] = {
-          TokenEvaluation[T](Set(..${tokensWithoutType(range)}), 
+          (f: (..${functionTypeParameter(range)}) => T): Formula[T] = {
+          Formula[T](Set(..${tokensWithoutType(range)}), 
                              (cache) => f(..${getTokenFromCache(range)}))
         }
      """
@@ -60,8 +60,8 @@ object CodeGenTokenSyntax {
     val range = Range(1, length + 1).toList
     q"""def dependsOn[..${typeParameters(range)}]
           (..${tokenParameters(range)})
-          (f: (..${functionTypeParameter(range)}) => T): DirectImplementation[T] = {
-          dependsOnEval(Niffler.requires(..${tokensWithoutType(range)})(f))
+          (f: (..${functionTypeParameter(range)}) => T): RegularOperation[T] = {
+          dependsOnFormula(Requires(..${tokensWithoutType(range)})(f))
         }"""
   }
 
@@ -71,20 +71,20 @@ object CodeGenTokenSyntax {
           (..${tokenParameters(range)})
           (f: (..${functionTypeParameter(range)}) => R)
           (implicit canAmendTWithR: Append.Value[T, R]): 
-          IncrementalImplementation[T, R] = {
-          amendWithEval(Niffler.requires(..${tokensWithoutType(range)})(f))
+          IncrementalOperation[T, R] = {
+          amendWithFormula(Requires(..${tokensWithoutType(range)})(f))
         }"""
   }
 
-  def nifflerSyntaxCodeGen(count: Int): Tree = {
-    val evalFunctions = Range(1, count + 1).toList.map(requiresCodeGen)
+  def requiresCodeGen(count: Int): Tree = {
+    val evalFunctions = Range(1, count + 1).toList.map(requiresApplyCodeGen)
     q"""
-       trait NifflerSyntax {
-        def constant[T](constant: => T): TokenEvaluation[T] = {
-          TokenEvaluation(Set.empty, (cache) => constant)
-        }
-        
-        ..$evalFunctions
+       object Requires {
+         def constant[T](constant: => T): Formula[T] = {
+           Formula(Set.empty, (cache) => constant)
+         }
+
+         ..$evalFunctions
        }
      """
   }
@@ -96,35 +96,44 @@ object CodeGenTokenSyntax {
       trait TokenSyntax[T] {
         thisToken: Token[T] =>
 
-        def asEval: TokenEvaluation[T] = {
-          Niffler.requires(thisToken)(i => i)
+        def asFormula: Formula[T] = {
+          Requires(thisToken)(i => i)
         }
 
-        def assign(constant: => T): DirectImplementation[T] = {
-          dependsOnEval(Niffler.constant(constant))
+        def assign(constant: => T): RegularOperation[T] = {
+          dependsOnFormula(Requires.constant(constant))
         }
 
         def amendWith[R](constant: => R)
-                        (implicit canAmendTWithR: Append.Value[T, R]): IncrementalImplementation[T, R] = {
-          IncrementalImplementation(thisToken, Niffler.constant(constant), canAmendTWithR)
+                        (implicit canAmendTWithR: Append.Value[T, R]): IncrementalOperation[T, R] = {
+          amendWithFormula(Requires.constant(constant))
         }
 
-        def dependsOnToken(token: Token[T]): DirectImplementation[T] = {
-          dependsOnEval(token.asEval)
+        def dependsOnToken(token: Token[T]): RegularOperation[T] = {
+          dependsOnFormula(token.asFormula)
         }
 
         def amendWithToken[R](token: Token[R])
-                             (implicit canAmendTWithR: Append.Value[T, R]): IncrementalImplementation[T, R] = {
-          amendWithEval(token.asEval)
+                             (implicit canAmendTWithR: Append.Value[T, R]): IncrementalOperation[T, R] = {
+          amendWithFormula(token.asFormula)
         }
 
-        def dependsOnEval(eval: TokenEvaluation[T]): DirectImplementation[T] = {
-          DirectImplementation(thisToken, eval)
+        def dependsOnFormula(formula: Formula[T]): RegularOperation[T] = {
+          RegularOperation(thisToken, formula)
         }
 
-        def amendWithEval[R](eval: TokenEvaluation[R])
-                            (implicit canAmendTWithR: Append.Value[T, R]): IncrementalImplementation[T, R] = {
-          IncrementalImplementation(thisToken, eval, canAmendTWithR)
+        def :=(formula: Formula[T]): RegularOperation[T] = {
+          dependsOnFormula(formula)
+        }
+
+        def amendWithFormula[R](formula: Formula[R])
+          (implicit canAmendTWithR: Append.Value[T, R]): IncrementalOperation[T, R] = {
+          IncrementalOperation(thisToken, formula, canAmendTWithR)
+        }
+
+        def +=[R](formula: Formula[R])
+          (implicit canAmendTWithR: Append.Value[T, R]): IncrementalOperation[T, R] = {
+          amendWithFormula(formula)
         }
 
         ..$dependsOnFunctions
@@ -139,8 +148,8 @@ object CodeGenTokenSyntax {
       package com.roboxue.niffler.syntax {
         import com.roboxue.niffler._
         import com.roboxue.niffler.execution.Append
-       
-        ..${nifflerSyntaxCodeGen(count)}
+
+        ..${requiresCodeGen(count)}
 
         ..${tokenSyntaxCodeGen(count)}
       }

@@ -15,7 +15,7 @@ import scala.concurrent.duration.Duration
   * @since 12/15/17.
   */
 class Logic private (val name: String,
-                     bindings: Map[Token[_], DirectImplementation[_]],
+                     bindings: Map[Token[_], RegularOperation[_]],
                      cachingPolicies: Map[Token[_], CachingPolicy]) {
   private[niffler] val dag: DirectedAcyclicGraph[Token[_], DefaultEdge] = {
     val g = new DirectedAcyclicGraph[Token[_], DefaultEdge](classOf[DefaultEdge])
@@ -25,17 +25,17 @@ class Logic private (val name: String,
     g
   }
 
-  def diverge(extraBindings: Iterable[Implementation[_]],
+  def diverge(extraBindings: Iterable[DataFlowOperation[_]],
               extraCachingPolicies: Map[Token[_], CachingPolicy] = Map.empty,
               newName: String = s"logic-${UUID.randomUUID()}"): Logic = {
     val updatedBindings = mutable.Map(bindings.toSeq: _*)
     for (impl <- extraBindings) {
       impl match {
-        case d: DirectImplementation[_] =>
+        case d: RegularOperation[_] =>
           updatedBindings(impl.token) = d
-        case i: IncrementalImplementation[_, _] =>
+        case i: IncrementalOperation[_, _] =>
           updatedBindings(impl.token) =
-            i.merge(updatedBindings.get(i.token).map(_.asInstanceOf[DirectImplementation[i.token.T0]]))
+            i.merge(updatedBindings.get(i.token).map(_.asInstanceOf[RegularOperation[i.token.T0]]))
       }
     }
     val updatedCachingPolicies = cachingPolicies ++ extraCachingPolicies
@@ -52,7 +52,7 @@ class Logic private (val name: String,
     * @return async execution result that contains a promise
     */
   def asyncRun[T](token: Token[T],
-                  extraImpl: Iterable[Implementation[_]] = Iterable.empty,
+                  extraImpl: Iterable[DataFlowOperation[_]] = Iterable.empty,
                   cache: ExecutionCache = ExecutionCache.empty): AsyncExecution[T] = {
     AsyncExecution(this.diverge(extraImpl), token, cache)
   }
@@ -69,7 +69,7 @@ class Logic private (val name: String,
     * @throws NifflerTimeoutException    when execution times out
     */
   def syncRun[T](token: Token[T],
-                 extraImpl: Iterable[Implementation[_]] = Iterable.empty,
+                 extraImpl: Iterable[DataFlowOperation[_]] = Iterable.empty,
                  cache: ExecutionCache = ExecutionCache.empty,
                  timeout: Duration = Duration.Inf): ExecutionResult[T] = {
     asyncRun(token, extraImpl, cache).await(timeout)
@@ -108,8 +108,8 @@ class Logic private (val name: String,
     unmet
   }
 
-  def implForToken[T](token: Token[T]): DirectImplementation[T] =
-    bindings(token).asInstanceOf[DirectImplementation[T]]
+  def implForToken[T](token: Token[T]): RegularOperation[T] =
+    bindings(token).asInstanceOf[RegularOperation[T]]
 
   def tokensInvolved: Set[Token[_]] = dag.vertexSet().toSet
 
@@ -136,17 +136,17 @@ object Logic {
     * @throws NoSuchElementException   if an implementation is missing
     * @return
     */
-  def apply(binding: Iterable[Implementation[_]],
+  def apply(binding: Iterable[DataFlowOperation[_]],
             cachingPolicies: Map[Token[_], CachingPolicy] = Map.empty,
             name: String = s"logic-${UUID.randomUUID()}"): Logic = {
-    val finalBindingMap: mutable.Map[Token[_], DirectImplementation[_]] = mutable.Map.empty
+    val finalBindingMap: mutable.Map[Token[_], RegularOperation[_]] = mutable.Map.empty
     for (impl <- binding) {
       impl match {
-        case d: DirectImplementation[_] =>
+        case d: RegularOperation[_] =>
           finalBindingMap(impl.token) = d
-        case i: IncrementalImplementation[_, _] =>
+        case i: IncrementalOperation[_, _] =>
           finalBindingMap(impl.token) =
-            i.merge(finalBindingMap.get(i.token).map(_.asInstanceOf[DirectImplementation[i.token.T0]]))
+            i.merge(finalBindingMap.get(i.token).map(_.asInstanceOf[RegularOperation[i.token.T0]]))
       }
     }
 

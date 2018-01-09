@@ -100,7 +100,7 @@ publishTo in ThisBuild := {
   else
     Some("releases" at nexus + "service/local/staging/deploy/maven2")
 }
-releaseCrossBuild := true
+releaseCrossBuild in ThisBuild := true
 releaseProcess := Seq[ReleaseStep](
   checkSnapshotDependencies,
   inquireVersions,

@@ -53,10 +53,10 @@ class LogicTest
     val t1: Token[String] = Token("a string")
     val t2: Token[Int] = Token("an int")
     val t3: Token[Int] = Token("another int")
-    val t3Impl: Implementation[Int] = t3.dependsOn(t1) { (v1) =>
+    val t3Impl: DataFlowOperation[Int] = t3.dependsOn(t1) { (v1) =>
       v1.length
     }
-    val t3Amend: Implementation[Int] = t3.amendWith(t2) { (v2) =>
+    val t3Amend: DataFlowOperation[Int] = t3.amendWith(t2) { (v2) =>
       v2
     }
     val logic1: Logic = Logic(Seq(t1.assign("hello"), t2.assign(3), t3Impl, t3Amend))
@@ -137,10 +137,10 @@ class LogicTest
   it should "run with amends only for a key and existing cache entry" in {
     val t2: Token[Int] = Token("an int")
     val t3: Token[Int] = Token("another int")
-    val t3Amend1: Implementation[Int] = t3.amendWith(t2) { (v2) =>
+    val t3Amend1: DataFlowOperation[Int] = t3.amendWith(t2) { (v2) =>
       v2
     }
-    val t3Amend2: Implementation[Int] = t3.amendWith(1)
+    val t3Amend2: DataFlowOperation[Int] = t3.amendWith(1)
     val logic3: Logic = Logic(Seq(t3Amend1, t3Amend2, t2.assign(6)))
     logic3
       .syncRun(t3, cache = ExecutionCache.fromValue(Map(t3 -> 42)), timeout = timeout.duration)
@@ -150,10 +150,10 @@ class LogicTest
   it should "run with amends only for a key and no cache entry" in {
     val t2: Token[Int] = Token("an int")
     val t3: Token[Int] = Token("another int")
-    val t3Amend1: Implementation[Int] = t3.amendWith(t2) { (v2) =>
+    val t3Amend1: DataFlowOperation[Int] = t3.amendWith(t2) { (v2) =>
       v2
     }
-    val t3Amend2: Implementation[Int] = t3.amendWith(1)
+    val t3Amend2: DataFlowOperation[Int] = t3.amendWith(1)
     val logic3: Logic = Logic(Seq(t3Amend1, t3Amend2, t2.assign(6)))
     logic3.syncRun(t3, timeout = timeout.duration).result shouldBe 7
   }
@@ -162,7 +162,7 @@ class LogicTest
     val t1: Token[String] = Token("a string")
     val t2: Token[Int] = Token("an int")
     val t3: Token[Int] = Token("another int")
-    val t3Impl: Implementation[Int] = t3
+    val t3Impl: DataFlowOperation[Int] = t3
       .dependsOn(t1, t2) { (t1, v2) =>
         t1.length + v2
       }

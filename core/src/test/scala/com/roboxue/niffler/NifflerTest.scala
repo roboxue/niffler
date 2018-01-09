@@ -11,11 +11,11 @@ class NifflerTest extends FlatSpec with Matchers {
     trait Test1 extends Niffler {
       val token1: Token[Int] = Token[Int]("t1")
       val token2: Token[Int] = Token[Int]("t2")
-      def getToken2Impl: Implementation[Int]
-      addImpl(getToken2Impl)
+      def getToken2Impl: DataFlowOperation[Int]
+      addLogicPart(getToken2Impl)
     }
     object Test2 extends Test1 {
-      override def getToken2Impl: Implementation[Int] = {
+      override def getToken2Impl: DataFlowOperation[Int] = {
         token2.dependsOn(token1) {
           _ + 3
         }
