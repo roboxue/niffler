@@ -56,102 +56,21 @@ object CodeGenTokenSyntax {
      """
   }
 
-  def dependsOnCodeGen(length: Int): Tree = {
-    val range = Range(1, length + 1).toList
-    q"""def dependsOn[..${typeParameters(range)}]
-          (..${tokenParameters(range)})
-          (f: (..${functionTypeParameter(range)}) => T): RegularOperation[T] = {
-          dependsOnFormula(Requires(..${tokensWithoutType(range)})(f))
-        }"""
-  }
-
-  def amendWithCodeGen(length: Int): Tree = {
-    val range = Range(1, length + 1).toList
-    q"""def amendWith[..${typeParameters(range)}, R]
-          (..${tokenParameters(range)})
-          (f: (..${functionTypeParameter(range)}) => R)
-          (implicit canAmendTWithR: Append.Value[T, R]): 
-          IncrementalOperation[T, R] = {
-          amendWithFormula(Requires(..${tokensWithoutType(range)})(f))
-        }"""
-  }
-
   def requiresCodeGen(count: Int): Tree = {
     val evalFunctions = Range(1, count + 1).toList.map(requiresApplyCodeGen)
     q"""
        object Requires {
-         def constant[T](constant: => T): Formula[T] = {
-           Formula(Set.empty, (cache) => constant)
-         }
-
          ..$evalFunctions
        }
      """
-  }
-
-  def tokenSyntaxCodeGen(count: Int): Tree = {
-    val dependsOnFunctions = Range(1, count + 1).toList.map(dependsOnCodeGen)
-    val amendWithFunctions = Range(1, count + 1).toList.map(amendWithCodeGen)
-    q"""
-      trait TokenSyntax[T] {
-        thisToken: Token[T] =>
-
-        def asFormula: Formula[T] = {
-          Requires(thisToken)(i => i)
-        }
-
-        def assign(constant: => T): RegularOperation[T] = {
-          dependsOnFormula(Requires.constant(constant))
-        }
-
-        def amendWith[R](constant: => R)
-                        (implicit canAmendTWithR: Append.Value[T, R]): IncrementalOperation[T, R] = {
-          amendWithFormula(Requires.constant(constant))
-        }
-
-        def dependsOnToken(token: Token[T]): RegularOperation[T] = {
-          dependsOnFormula(token.asFormula)
-        }
-
-        def amendWithToken[R](token: Token[R])
-                             (implicit canAmendTWithR: Append.Value[T, R]): IncrementalOperation[T, R] = {
-          amendWithFormula(token.asFormula)
-        }
-
-        def dependsOnFormula(formula: Formula[T]): RegularOperation[T] = {
-          RegularOperation(thisToken, formula)
-        }
-
-        def :=(formula: Formula[T]): RegularOperation[T] = {
-          dependsOnFormula(formula)
-        }
-
-        def amendWithFormula[R](formula: Formula[R])
-          (implicit canAmendTWithR: Append.Value[T, R]): IncrementalOperation[T, R] = {
-          IncrementalOperation(thisToken, formula, canAmendTWithR)
-        }
-
-        def +=[R](formula: Formula[R])
-          (implicit canAmendTWithR: Append.Value[T, R]): IncrementalOperation[T, R] = {
-          amendWithFormula(formula)
-        }
-
-        ..$dependsOnFunctions
-
-        ..$amendWithFunctions
-      }
-      """
   }
 
   def generateCode(count: Int): Tree = {
     q"""
       package com.roboxue.niffler.syntax {
         import com.roboxue.niffler._
-        import com.roboxue.niffler.execution.Append
 
         ..${requiresCodeGen(count)}
-
-        ..${tokenSyntaxCodeGen(count)}
       }
       """
   }

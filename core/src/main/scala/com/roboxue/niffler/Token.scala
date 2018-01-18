@@ -2,7 +2,8 @@ package com.roboxue.niffler
 
 import java.util.UUID
 
-import com.roboxue.niffler.syntax.TokenSyntax
+import com.roboxue.niffler.execution.Append
+import com.roboxue.niffler.syntax.Requires
 
 import scala.reflect.runtime.universe.TypeTag
 
@@ -10,7 +11,7 @@ import scala.reflect.runtime.universe.TypeTag
   * @author rxue
   * @since 12/15/17.
   */
-class Token[T: TypeTag](val name: String, val uuid: String, val codeName: String) extends TokenSyntax[T] {
+class Token[T: TypeTag](val name: String, val uuid: String, val codeName: String) {
 
   /**
     * Used by external to reference [[T]]
@@ -32,6 +33,18 @@ class Token[T: TypeTag](val name: String, val uuid: String, val codeName: String
 
   override def hashCode(): Int = {
     uuid.hashCode
+  }
+
+  def mapFormula[R](f: T => R): Formula[R] = Requires(this)(f)
+
+  def asFormula: Formula[T] = mapFormula[T]((i) => i)
+
+  def :=(formula: Formula[T]): RegularOperation[T] = {
+    RegularOperation(this, formula)
+  }
+
+  def +=[R](formula: Formula[R])(implicit canAmendTWithR: Append.Value[T, R]): IncrementalOperation[T, R] = {
+    IncrementalOperation(this, formula, canAmendTWithR)
   }
 
 }

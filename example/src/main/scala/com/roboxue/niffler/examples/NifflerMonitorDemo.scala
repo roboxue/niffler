@@ -1,6 +1,7 @@
 package com.roboxue.niffler.examples
 
 import com.roboxue.niffler.monitoring.{ExecutionHistoryService, NifflerMonitor}
+import com.roboxue.niffler.syntax.{Constant, Requires}
 import com.roboxue.niffler.{Logic, Niffler, Token}
 
 /**
@@ -12,7 +13,7 @@ object NifflerMonitorDemo {
     // A monitoring server with ExecutionHistoryService as a plugin
     val logic1 = Niffler.combine(NifflerMonitor, ExecutionHistoryService)
     // a logic that will throw exception in a prerequisite step
-    val logic2 = logic1.diverge(Iterable(NifflerMonitor.nifflerMonitorServicePortNumber.assign({
+    val logic2 = logic1.diverge(Iterable(NifflerMonitor.nifflerMonitorServicePortNumber := Constant({
       throw new Exception("hello world niffler")
     })))
 
@@ -32,19 +33,29 @@ object NifflerMonitorDemo {
     val t3 = Token[Int]("t3")
     val t4 = Token[Int]("t4")
     val t5 = Token[Int]("t5")
-    val logic3 = Logic(
-      Iterable(t1.assign({ Thread.sleep(10000); "good morning" }), t2.assign({ Thread.sleep(4000); 2 }), t3.assign({
-        Thread.sleep(20000); 3
-      }), t4.dependsOn(t1, t2) { _.length + _ }, t5.dependsOn(t4, t3) { _ + _ })
-    )
+    val logic3 = Logic(Iterable(t1 := Constant({
+      Thread.sleep(10000)
+      "good morning"
+    }), t2 := Constant({
+      Thread.sleep(4000)
+      2
+    }), t3 := Constant({
+      Thread.sleep(20000)
+      3
+    }), t4 := Requires(t1, t2) { _.length + _ }, t5 := Requires(t4, t3) { _ + _ }))
     logic3.asyncRun(t5)
 
     // missing implementation for a token will yield a quick runtime exception
-    val logic4 = Logic(
-      Iterable(t1.assign({ Thread.sleep(10000); "good morning" }), t2.assign({ Thread.sleep(4000); 2 }), t3.assign({
-        Thread.sleep(20000); 3
-      }), t5.dependsOn(t4, t3) { _ + _ })
-    )
+    val logic4 = Logic(Iterable(t1 := Constant({
+      Thread.sleep(10000)
+      "good morning"
+    }), t2 := Constant({
+      Thread.sleep(4000)
+      2
+    }), t3 := Constant({
+      Thread.sleep(20000)
+      3
+    }), t5 := Requires(t4, t3) { _ + _ }))
     logic4.asyncRun(t5)
   }
 }

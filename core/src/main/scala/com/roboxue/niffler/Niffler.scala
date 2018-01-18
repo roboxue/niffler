@@ -3,6 +3,7 @@ package com.roboxue.niffler
 import akka.actor.ActorSystem
 import com.google.common.collect.EvictingQueue
 import com.roboxue.niffler.execution.CachingPolicy
+import com.roboxue.niffler.syntax.Constant
 import monix.eval.Coeval
 
 import scala.collection.mutable
@@ -56,7 +57,7 @@ object Niffler {
            existingActorSystem: Option[ActorSystem] = None): Unit = {
     executionHistory = EvictingQueue.create(executionHistoryLimit)
     actorSystem = existingActorSystem
-    addGlobalLogicPart(argv.assign(args))
+    addGlobalLogicPart(argv := Constant(args))
   }
 
   def updateExecutionHistoryCapacity(newLimit: Int): Unit = synchronized {

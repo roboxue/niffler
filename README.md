@@ -114,15 +114,16 @@ see [NifflerSyntaxDemo.scala](example/src/main/scala/com/roboxue/niffler/example
 Concurrent execution
 ```scala
     import com.roboxue.niffler.{Logic, Token}
+    import com.roboxue.niffler.syntax.Constant
     // these lines help self-doc
     val tA = Token[Int]("this will print 'A' and return 1")
     val tB = Token[Int]("this will print 'B' and return 2")
     val tC = Token[Int]("this will print 'C 1+2' and return 3")
     // these lines assemble the logics
     val logic = Logic(Seq(
-      tA.assign({ Thread.sleep(1); print("A"); 1 }),
-      tB.assign({ Thread.sleep(1); print("B"); 2 }),
-      tC.dependsOn(tA, tB) {
+      tA := Constant({ Thread.sleep(1); print("A"); 1 }),
+      tB := Constant({ Thread.sleep(1); print("B"); 2 }),
+      tC := Requires(tA, tB) {
         (resultOfA: Int, resultOfB: Int) =>
           println(s"C: $resultOfA + $resultOfB")
           resultOfA + resultOfB
@@ -173,8 +174,8 @@ After:
     // only 4 lines of doc strings, and that is really the minimum you can get
 
     // doc free implementation, add comments only when needed
-    myWork dependsOn(p1, p2) {...}
-    myOtheWwork dependsOn(p1, p2) {...}
+    myWork := Requires(p1, p2) {...}
+    myOtheWwork := Requires(p1, p2) {...}
 ```
 
 ##### Example 3

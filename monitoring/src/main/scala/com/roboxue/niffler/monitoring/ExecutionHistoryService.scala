@@ -1,6 +1,7 @@
 package com.roboxue.niffler.monitoring
 
 import com.roboxue.niffler.execution._
+import com.roboxue.niffler.syntax.{Constant, Requires}
 import com.roboxue.niffler.{AsyncExecution, Niffler, Token}
 import fs2.time.awakeEvery
 import fs2.{Scheduler, Sink, Strategy, Stream, Task}
@@ -25,9 +26,9 @@ object ExecutionHistoryService extends Niffler with ServiceUtils {
   final val nifflerExecutionHistoryServiceTitle: Token[String] = Token("execution history service title")
   final val nifflerExecutionHistoryServiceWrapper: Token[SubServiceWrapper] = Token("execution history service wrapper")
 
-  $$(nifflerExecutionHistoryServiceTitle.assign("Execution Service"))
+  $$(nifflerExecutionHistoryServiceTitle := Constant("Execution Service"))
 
-  $$(nifflerExecutionHistoryService.dependsOn(nifflerExecutionHistoryServiceTitle) { (title) =>
+  $$(nifflerExecutionHistoryService := nifflerExecutionHistoryServiceTitle.mapFormula { (title) =>
     // thread pool used for socket streaming
     val scheduler: Scheduler = Scheduler.fromFixedDaemonPool(2, threadName = "socket")
     // thread pool used for calculating each frame in the socket stream
@@ -47,13 +48,15 @@ object ExecutionHistoryService extends Niffler with ServiceUtils {
   })
 
   $$(
-    nifflerExecutionHistoryServiceWrapper
-      .dependsOn(nifflerExecutionHistoryService, nifflerExecutionHistoryServiceTitle) { (service, title) =>
-        SubServiceWrapper(title, "Lists all current and past executions, adjust history settings", "/history", service)
-      }
+    nifflerExecutionHistoryServiceWrapper := Requires(
+      nifflerExecutionHistoryService,
+      nifflerExecutionHistoryServiceTitle
+    ) { (service, title) =>
+      SubServiceWrapper(title, "Lists all current and past executions, adjust history settings", "/history", service)
+    }
   )
 
-  $$(NifflerMonitor.nifflerMonitorSubServices.amendWithToken(nifflerExecutionHistoryServiceWrapper))
+  $$(NifflerMonitor.nifflerMonitorSubServices += nifflerExecutionHistoryServiceWrapper.asFormula)
 
   private def apiGetExecutionStatus(executionId: Int): Task[Response] = {
     val (liveExecutions, pastExecutions, _) = Niffler.getHistory
