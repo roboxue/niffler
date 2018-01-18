@@ -57,26 +57,32 @@ class LogicTest
     val t3Impl: DataFlowOperation[Int] = t3 := t1.mapFormula { (v1) =>
       v1.length
     }
-    val t3Amend: DataFlowOperation[Int] = t3 := t2.mapFormula { (v2) =>
+    val t3Amend: DataFlowOperation[Int] = t3 += t2.mapFormula { (v2) =>
       v2
     }
     val logic1: Logic = Logic(Seq(t1 := Constant("hello"), t2 := Constant(3), t3Impl, t3Amend))
     logic1.syncRun(t3) match {
       case ExecutionResult(result, _, cache) =>
-        result shouldBe 8
+        result shouldBe 8 // hello.length = 5; 5 + 3 = 8
         cache.getValues shouldBe Map(t1 -> "hello", t2 -> 3, t3 -> 8)
     }
     val logic2: Logic = Logic(Seq(t3Impl, t3Amend))
     logic2.syncRun(t3, cache = ExecutionCache.fromValue(Map(t1 -> "wow", t2 -> 6))) match {
       case ExecutionResult(result, _, cache) =>
-        result shouldBe 9
+        result shouldBe 9 // wow.length = 3; 3 + 6 = 9
         cache.getValues shouldBe Map(t1 -> "wow", t2 -> 6, t3 -> 9)
     }
     val logic3: Logic = Logic(Seq(t3Amend))
     logic3.syncRun(t3, cache = ExecutionCache.fromValue(Map(t1 -> "wow", t2 -> 6, t3 -> 42))) match {
       case ExecutionResult(result, _, cache) =>
-        result shouldBe 48
+        result shouldBe 48 // 42 + 6 = 48, t1's result wow is not used because we didn't provide t3Impl
         cache.getValues shouldBe Map(t1 -> "wow", t2 -> 6, t3 -> 48)
+    }
+    val logic4: Logic = Logic(Seq(t3Impl, t3Amend))
+    logic4.syncRun(t3, cache = ExecutionCache.fromValue(Map(t1 -> "wow", t2 -> 6, t3 -> 42))) match {
+      case ExecutionResult(result, _, cache) =>
+        result shouldBe 9 // wow.length = 3; 3 + 6 = 9; pre-existing value 42 has been override by t3Impl
+        cache.getValues shouldBe Map(t1 -> "wow", t2 -> 6, t3 -> 9)
     }
   }
 
@@ -117,9 +123,9 @@ class LogicTest
     val k1 = Token[Int]("k1")
     val k2 = Token[Int]("k2")
     val k3 = Token[Int]("k3")
-    val logic = Logic(Seq(k1 := {
+    val logic = Logic(Seq(k1 := Constant({
       throw new Exception("hello niffler")
-    }, k2 := k1.mapFormula { (k1) =>
+    }), k2 := k1.mapFormula { (k1) =>
       k1 + 1
     }, k3 := k2.mapFormula { (k2) =>
       k2 + 1
