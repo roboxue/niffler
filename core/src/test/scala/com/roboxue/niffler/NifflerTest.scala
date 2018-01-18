@@ -12,7 +12,7 @@ class NifflerTest extends FlatSpec with Matchers {
       val token1: Token[Int] = Token[Int]("t1")
       val token2: Token[Int] = Token[Int]("t2")
       def getToken2Impl: DataFlowOperation[Int]
-      addLogicPart(getToken2Impl)
+      addOperation(getToken2Impl)
     }
     object Test2 extends Test1 {
       override def getToken2Impl: DataFlowOperation[Int] = {

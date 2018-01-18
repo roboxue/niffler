@@ -34,16 +34,16 @@ object NifflerSyntaxDemo {
       // It takes two parameters to construct
       // the first param is the list of `Token` it depends on
       // the second param is a lambda function to use the return values of dependencies and yield a `T`
-      val logicPart1: DataFlowOperation[Boolean] =
+      val operation1: DataFlowOperation[Boolean] =
         login := Requires(email, password)({ (email: String, password: String) =>
           true
         })
       // the type signature in the lambda function in the example above can be ignored
-      val logicPart2: DataFlowOperation[Boolean] = login := Requires(email, password)({ (email, password) =>
+      val operation2: DataFlowOperation[Boolean] = login := Requires(email, password)({ (email, password) =>
         true
       })
       // the param name in the lambda function can be anything you like
-      val logicPart3: DataFlowOperation[Boolean] = login := Requires(email, password)({ (userEmail, userPassword) =>
+      val operation3: DataFlowOperation[Boolean] = login := Requires(email, password)({ (userEmail, userPassword) =>
         userEmail == userPassword
       })
 
@@ -52,24 +52,24 @@ object NifflerSyntaxDemo {
         true
       }
 
-      val logicPart4: DataFlowOperation[Boolean] = login := Requires(email, password)(alwaysSuccessfulLogin)
+      val operation4: DataFlowOperation[Boolean] = login := Requires(email, password)(alwaysSuccessfulLogin)
 
       // another way to create a DataFlowOperation is by creating formula
       val formula: Formula[Boolean] = Requires(email, password)(alwaysSuccessfulLogin)
-      val logicPart5: DataFlowOperation[Boolean] = login := formula
+      val operation5: DataFlowOperation[Boolean] = login := formula
 
       // if you depends on only one token, you can use Token.mapFormula(f) instead of Requires(token)(f)
-      val logicPart6: DataFlowOperation[Boolean] = login := email.mapFormula(_.nonEmpty)
+      val operation6: DataFlowOperation[Boolean] = login := email.mapFormula(_.nonEmpty)
 
-      // Niffler is a collection of LogicParts.
+      // Niffler is a collection of DataFlowOperations.
       // Niffler is a trait, usually you'll create an Object to extend Niffler to provide static reference to tokens
-      // Niffler provides grammar sugars to easily add LogicParts
+      // Niffler provides grammar sugars to easily add DataFlowOperation
       object NifflerDemo extends Niffler {
-        // use protected method addLogicPart to add DataFlowOperation to niffler. This ensures niffler is immutable upon creation
-        addLogicPart(logicPart4)
-        // $$ works as well if you don't want to type 'addLogicPart'
+        // use protected method addOperation to add DataFlowOperation to niffler. This ensures niffler is immutable upon creation
+        addOperation(operation4)
+        // $$ works as well if you don't want to type 'addOperation'
         // DataFlowOperation for the same token will override existing DataFlowOperation,
-        // thus logicPart4 has been overridden by the following DataFlowOperation, since they all implements `login`
+        // thus operation4 has been overridden by the following DataFlowOperation, since they all implements `login`
         $$(login := Requires(email, password)({ (email, password) =>
           email == password
         }))
@@ -106,7 +106,7 @@ object NifflerSyntaxDemo {
       // this is equivalent to a runtime override
       assert(
         NifflerDemo
-          .syncRun(login, Seq(email := Constant("roboxue@roboxue.com"), password := Constant("password"), logicPart4))
+          .syncRun(login, Seq(email := Constant("roboxue@roboxue.com"), password := Constant("password"), operation4))
           .result == true
       )
       // more powerful than an override, this can change the dependency list as well.
