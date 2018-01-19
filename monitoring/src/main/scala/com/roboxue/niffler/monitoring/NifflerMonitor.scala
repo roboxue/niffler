@@ -23,7 +23,7 @@ object NifflerMonitor extends Niffler {
     "launch the monitor service and return the server instance"
   )
 
-  $$(nifflerMonitorService := nifflerMonitorSubServices.mapFormula { (subServices) =>
+  $$(nifflerMonitorService := nifflerMonitorSubServices.asFormula { (subServices) =>
     import org.http4s.dsl._
     import org.http4s.twirl._
     HttpService {

@@ -16,7 +16,7 @@ class NifflerTest extends FlatSpec with Matchers {
     }
     object Test2 extends Test1 {
       override def getToken2Impl: DataFlowOperation[Int] = {
-        token2 := token1.mapFormula(_ + 3)
+        token2 := token1.asFormula(_ + 3)
       }
 
     }

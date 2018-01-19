@@ -28,7 +28,7 @@ object ExecutionHistoryService extends Niffler with ServiceUtils {
 
   $$(nifflerExecutionHistoryServiceTitle := Constant("Execution Service"))
 
-  $$(nifflerExecutionHistoryService := nifflerExecutionHistoryServiceTitle.mapFormula { (title) =>
+  $$(nifflerExecutionHistoryService := nifflerExecutionHistoryServiceTitle.asFormula { (title) =>
     // thread pool used for socket streaming
     val scheduler: Scheduler = Scheduler.fromFixedDaemonPool(2, threadName = "socket")
     // thread pool used for calculating each frame in the socket stream

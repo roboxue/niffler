@@ -35,9 +35,9 @@ class Token[T: TypeTag](val name: String, val uuid: String, val codeName: String
     uuid.hashCode
   }
 
-  def mapFormula[R](f: T => R): Formula[R] = Requires(this)(f)
+  def asFormula[R](f: T => R): Formula[R] = Requires(this)(f)
 
-  def asFormula: Formula[T] = mapFormula[T]((i) => i)
+  def asFormula: Formula[T] = asFormula[T]((i) => i)
 
   def :=(formula: Formula[T]): RegularOperation[T] = {
     RegularOperation(this, formula)

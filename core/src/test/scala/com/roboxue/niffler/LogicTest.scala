@@ -35,11 +35,11 @@ class LogicTest
     val k3 = Token[Int]("k3")
     val k4 = Token[Int]("k4")
     val k5 = Token[Int]("k5")
-    val logic = Logic(Seq(k5 := k4.mapFormula { (k4) =>
+    val logic = Logic(Seq(k5 := k4.asFormula { (k4) =>
       k4 + 5
-    }, k4 := Constant(4), k3 := k4.mapFormula { k4 =>
+    }, k4 := Constant(4), k3 := k4.asFormula { k4 =>
       k4 + 3
-    }, k2 := k4.mapFormula { k4 =>
+    }, k2 := k4.asFormula { k4 =>
       k4 + 2
     }, k1 := Requires(k2, k3) { (k2, k3) =>
       k2 + k3 + 1
@@ -54,10 +54,10 @@ class LogicTest
     val t1: Token[String] = Token("a string")
     val t2: Token[Int] = Token("an int")
     val t3: Token[Int] = Token("another int")
-    val t3Impl: DataFlowOperation[Int] = t3 := t1.mapFormula { (v1) =>
+    val t3Impl: DataFlowOperation[Int] = t3 := t1.asFormula { (v1) =>
       v1.length
     }
-    val t3Amend: DataFlowOperation[Int] = t3 += t2.mapFormula { (v2) =>
+    val t3Amend: DataFlowOperation[Int] = t3 += t2.asFormula { (v2) =>
       v2
     }
     val logic1: Logic = Logic(Seq(t1 := Constant("hello"), t2 := Constant(3), t3Impl, t3Amend))
@@ -94,14 +94,14 @@ class LogicTest
     val k5 = Token[Int]("k5")
     val logic = Logic(
       Seq(
-        k5 := k4.mapFormula { (k4) =>
+        k5 := k4.asFormula { (k4) =>
           k4 + 5
         },
         k4 := Constant(4),
-        k3 := k4.mapFormula { k4 =>
+        k3 := k4.asFormula { k4 =>
           k4 + 3
         },
-        k2 := k4.mapFormula { k4 =>
+        k2 := k4.asFormula { k4 =>
           k4 + 2
         },
         k1 := Requires(k2, k3) { (k2, k3) =>
@@ -125,9 +125,9 @@ class LogicTest
     val k3 = Token[Int]("k3")
     val logic = Logic(Seq(k1 := Constant({
       throw new Exception("hello niffler")
-    }), k2 := k1.mapFormula { (k1) =>
+    }), k2 := k1.asFormula { (k1) =>
       k1 + 1
-    }, k3 := k2.mapFormula { (k2) =>
+    }, k3 := k2.asFormula { (k2) =>
       k2 + 1
     }))
 
@@ -144,7 +144,7 @@ class LogicTest
   it should "run with amends only for a key and existing cache entry" in {
     val t2: Token[Int] = Token("an int")
     val t3: Token[Int] = Token("another int")
-    val t3Amend1: DataFlowOperation[Int] = t3 += t2.mapFormula { (v2) =>
+    val t3Amend1: DataFlowOperation[Int] = t3 += t2.asFormula { (v2) =>
       v2
     }
     val t3Amend2: DataFlowOperation[Int] = t3 += Constant(1)
@@ -157,7 +157,7 @@ class LogicTest
   it should "run with amends only for a key and no cache entry" in {
     val t2: Token[Int] = Token("an int")
     val t3: Token[Int] = Token("another int")
-    val t3Amend1: DataFlowOperation[Int] = t3 += t2.mapFormula { (v2) =>
+    val t3Amend1: DataFlowOperation[Int] = t3 += t2.asFormula { (v2) =>
       v2
     }
     val t3Amend2: DataFlowOperation[Int] = t3 += Constant(1)
@@ -183,10 +183,10 @@ class LogicTest
     val k1 = Token[Int]("k1")
     val k2 = Token[Int]("k2")
     val k3 = Token[Int]("k3")
-    val logic = Logic(Seq(k1 := Constant(1), k2 := k1.mapFormula { (k1) =>
+    val logic = Logic(Seq(k1 := Constant(1), k2 := k1.asFormula { (k1) =>
       Thread.sleep(200)
       k1 + 1
-    }, k3 := k2.mapFormula { (k2) =>
+    }, k3 := k2.asFormula { (k2) =>
       k2 + 1
     }))
 

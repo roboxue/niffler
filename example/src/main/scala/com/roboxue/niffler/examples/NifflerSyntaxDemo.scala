@@ -58,8 +58,8 @@ object NifflerSyntaxDemo {
       val formula: Formula[Boolean] = Requires(email, password)(alwaysSuccessfulLogin)
       val operation5: DataFlowOperation[Boolean] = login := formula
 
-      // if you depends on only one token, you can use Token.mapFormula(f) instead of Requires(token)(f)
-      val operation6: DataFlowOperation[Boolean] = login := email.mapFormula(_.nonEmpty)
+      // if you depends on only one token, you can use Token.asFormula(f) instead of Requires(token)(f)
+      val operation6: DataFlowOperation[Boolean] = login := email.asFormula(_.nonEmpty)
 
       // Niffler is a collection of DataFlowOperations.
       // Niffler is a trait, usually you'll create an Object to extend Niffler to provide static reference to tokens
@@ -113,13 +113,13 @@ object NifflerSyntaxDemo {
       // Previously you need both email and password to login, now you can ignore password field
       assert(
         NifflerDemo
-          .syncRun(login, Seq(email := Constant("foo@roboxue.com"), login := email.mapFormula { email =>
+          .syncRun(login, Seq(email := Constant("foo@roboxue.com"), login := email.asFormula { email =>
             email.contains("roboxue.com")
           }))
           .result == true
       )
       // logic.diverge do the same thing
-      val logic2: Logic = NifflerDemo.diverge(Seq(login := email.mapFormula { email =>
+      val logic2: Logic = NifflerDemo.diverge(Seq(login := email.asFormula { email =>
         email.contains("roboxue.com")
       }))
       assert(Try(NifflerDemo.syncRun(login, Seq(email := Constant("bar@roboxue.com")))).isSuccess == false)
@@ -139,7 +139,7 @@ object NifflerSyntaxDemo {
       // with extra override and a non-empty cache
       assert(
         NifflerDemo
-          .syncRun(login, extraImpl = Seq(login := password.mapFormula { _ == "password" }), cache = cacheOfR3)
+          .syncRun(login, extraImpl = Seq(login := password.asFormula { _ == "password" }), cache = cacheOfR3)
           .result == true
       )
     } finally {
