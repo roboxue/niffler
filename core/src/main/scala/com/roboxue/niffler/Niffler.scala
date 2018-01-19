@@ -3,6 +3,7 @@ package com.roboxue.niffler
 import akka.actor.ActorSystem
 import com.google.common.collect.EvictingQueue
 import com.roboxue.niffler.execution.CachingPolicy
+import com.roboxue.niffler.syntax.Constant
 import monix.eval.Coeval
 
 import scala.collection.mutable
@@ -14,19 +15,19 @@ import scala.collection.mutable.ListBuffer
   */
 trait Niffler {
   private lazy val nifflerName: String = getClass.getName.stripSuffix("$")
-  private[niffler] val implementations = ListBuffer.empty[Coeval[DataFlowOperation[_]]]
+  private[niffler] val operations = ListBuffer.empty[Coeval[DataFlowOperation[_]]]
   private[niffler] val cachingPolicies = mutable.Map.empty[Token[_], CachingPolicy]
 
   def getLogic: Logic = {
-    Logic(Niffler.getGlobalLogicParts ++ collectImplementations, cachingPolicies.toMap, nifflerName)
+    Logic(Niffler.getGlobalOperations ++ collectImplementations, cachingPolicies.toMap, nifflerName)
   }
 
-  protected def addLogicPart(impl: => DataFlowOperation[_]): Unit = {
-    implementations += Coeval(impl)
+  protected def addOperation(op: => DataFlowOperation[_]): Unit = {
+    operations += Coeval(op)
   }
 
   protected def $$(impl: => DataFlowOperation[_]): Unit = {
-    addLogicPart(impl)
+    addOperation(impl)
   }
 
   protected def updateCachingPolicy(token: Token[_], cachingPolicy: CachingPolicy): Unit = {
@@ -34,7 +35,7 @@ trait Niffler {
   }
 
   private def collectImplementations: Iterable[DataFlowOperation[_]] = {
-    implementations.toList.map(_.apply())
+    operations.toList.map(_.apply())
   }
 
 }
@@ -56,7 +57,7 @@ object Niffler {
            existingActorSystem: Option[ActorSystem] = None): Unit = {
     executionHistory = EvictingQueue.create(executionHistoryLimit)
     actorSystem = existingActorSystem
-    addGlobalLogicPart(argv.assign(args))
+    addGlobalOperation(argv := Constant(args))
   }
 
   def updateExecutionHistoryCapacity(newLimit: Int): Unit = synchronized {
@@ -76,20 +77,20 @@ object Niffler {
     liveExecutions.clear()
     executionHistory.clear()
     actorSystem = None
-    globalLogicPartsMap.clear()
+    globalOperationsMap.clear()
   }
 
-  def addGlobalLogicPart(impl: DataFlowOperation[_]): Unit = {
-    globalLogicPartsMap(impl.token) = impl
+  def addGlobalOperation(impl: DataFlowOperation[_]): Unit = {
+    globalOperationsMap(impl.token) = impl
   }
 
-  def getGlobalLogicParts: Iterable[DataFlowOperation[_]] = {
-    globalLogicPartsMap.values
+  def getGlobalOperations: Iterable[DataFlowOperation[_]] = {
+    globalOperationsMap.values
   }
 
   // internal global state
   private var actorSystem: Option[ActorSystem] = None
-  private val globalLogicPartsMap: mutable.Map[Token[_], DataFlowOperation[_]] = mutable.Map.empty
+  private val globalOperationsMap: mutable.Map[Token[_], DataFlowOperation[_]] = mutable.Map.empty
   private val liveExecutions: mutable.Set[AsyncExecution[_]] = mutable.Set.empty
   private var executionHistory: EvictingQueue[AsyncExecution[_]] = EvictingQueue.create(20)
 
@@ -135,7 +136,7 @@ private class MutableNiffler {
 
   def importFrom(anotherNiffler: Niffler): Unit = {
     nifflerNames += anotherNiffler.name
-    implementations ++= anotherNiffler.implementations
+    implementations ++= anotherNiffler.operations
     cachingPolicies ++= anotherNiffler.cachingPolicies
   }
 
@@ -144,6 +145,6 @@ private class MutableNiffler {
   }
 
   def getLogic: Logic = {
-    Logic(Niffler.getGlobalLogicParts ++ implementations.toList.map(_.apply()), cachingPolicies.toMap, nifflerName)
+    Logic(Niffler.getGlobalOperations ++ implementations.toList.map(_.apply()), cachingPolicies.toMap, nifflerName)
   }
 }

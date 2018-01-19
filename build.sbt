@@ -14,6 +14,8 @@ scalaModuleInfo := scalaModuleInfo.value map {
   _.withOverrideScalaVersion(true)
 }
 
+lazy val root = project.in(file(".")).aggregate(core, example, monitoring)
+
 lazy val core = nifflerProject("core", enablePublish = true)
   .settings(
     sourceGenerators in Compile += {

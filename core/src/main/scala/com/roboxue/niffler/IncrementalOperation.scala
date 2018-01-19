@@ -5,7 +5,7 @@ import com.roboxue.niffler.execution.Append
 /**
   * [[IncrementalOperation]] is an advanced implementation of [[DataFlowOperation]].
   *
-  * To create a [[IncrementalOperation]], use helper methods in [[Token]](via [[com.roboxue.niffler.syntax.TokenSyntax]]
+  * To create a [[IncrementalOperation]], use helper methods [Token.+=]]
   *
   * @param token this [[Token]] wil be represented by the value calculated using [[formula]] and [[howToAmend]] in runtime
   * @param formula the [[Formula]] used to calculate the amendment to [[token]]'s existing value

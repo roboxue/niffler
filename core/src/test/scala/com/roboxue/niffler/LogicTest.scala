@@ -5,6 +5,7 @@ import java.util.concurrent.TimeUnit
 import akka.actor.ActorSystem
 import akka.testkit.{DefaultTimeout, TestKit}
 import com.roboxue.niffler.execution._
+import com.roboxue.niffler.syntax.{Constant, Requires}
 import org.scalatest.{BeforeAndAfterEach, FlatSpecLike, Matchers}
 
 import scala.concurrent.duration.Duration
@@ -34,13 +35,13 @@ class LogicTest
     val k3 = Token[Int]("k3")
     val k4 = Token[Int]("k4")
     val k5 = Token[Int]("k5")
-    val logic = Logic(Seq(k5.dependsOn(k4) { (k4) =>
+    val logic = Logic(Seq(k5 := k4.asFormula { (k4) =>
       k4 + 5
-    }, k4.assign(4), k3.dependsOn(k4) { k4 =>
+    }, k4 := Constant(4), k3 := k4.asFormula { k4 =>
       k4 + 3
-    }, k2.dependsOn(k4) { k4 =>
+    }, k2 := k4.asFormula { k4 =>
       k4 + 2
-    }, k1.dependsOn(k2, k3) { (k2, k3) =>
+    }, k1 := Requires(k2, k3) { (k2, k3) =>
       k2 + k3 + 1
     }))
 
@@ -53,29 +54,35 @@ class LogicTest
     val t1: Token[String] = Token("a string")
     val t2: Token[Int] = Token("an int")
     val t3: Token[Int] = Token("another int")
-    val t3Impl: DataFlowOperation[Int] = t3.dependsOn(t1) { (v1) =>
+    val t3Impl: DataFlowOperation[Int] = t3 := t1.asFormula { (v1) =>
       v1.length
     }
-    val t3Amend: DataFlowOperation[Int] = t3.amendWith(t2) { (v2) =>
+    val t3Amend: DataFlowOperation[Int] = t3 += t2.asFormula { (v2) =>
       v2
     }
-    val logic1: Logic = Logic(Seq(t1.assign("hello"), t2.assign(3), t3Impl, t3Amend))
+    val logic1: Logic = Logic(Seq(t1 := Constant("hello"), t2 := Constant(3), t3Impl, t3Amend))
     logic1.syncRun(t3) match {
       case ExecutionResult(result, _, cache) =>
-        result shouldBe 8
+        result shouldBe 8 // hello.length = 5; 5 + 3 = 8
         cache.getValues shouldBe Map(t1 -> "hello", t2 -> 3, t3 -> 8)
     }
     val logic2: Logic = Logic(Seq(t3Impl, t3Amend))
     logic2.syncRun(t3, cache = ExecutionCache.fromValue(Map(t1 -> "wow", t2 -> 6))) match {
       case ExecutionResult(result, _, cache) =>
-        result shouldBe 9
+        result shouldBe 9 // wow.length = 3; 3 + 6 = 9
         cache.getValues shouldBe Map(t1 -> "wow", t2 -> 6, t3 -> 9)
     }
     val logic3: Logic = Logic(Seq(t3Amend))
     logic3.syncRun(t3, cache = ExecutionCache.fromValue(Map(t1 -> "wow", t2 -> 6, t3 -> 42))) match {
       case ExecutionResult(result, _, cache) =>
-        result shouldBe 48
+        result shouldBe 48 // 42 + 6 = 48, t1's result wow is not used because we didn't provide t3Impl
         cache.getValues shouldBe Map(t1 -> "wow", t2 -> 6, t3 -> 48)
+    }
+    val logic4: Logic = Logic(Seq(t3Impl, t3Amend))
+    logic4.syncRun(t3, cache = ExecutionCache.fromValue(Map(t1 -> "wow", t2 -> 6, t3 -> 42))) match {
+      case ExecutionResult(result, _, cache) =>
+        result shouldBe 9 // wow.length = 3; 3 + 6 = 9; pre-existing value 42 has been override by t3Impl
+        cache.getValues shouldBe Map(t1 -> "wow", t2 -> 6, t3 -> 9)
     }
   }
 
@@ -87,17 +94,17 @@ class LogicTest
     val k5 = Token[Int]("k5")
     val logic = Logic(
       Seq(
-        k5.dependsOn(k4) { (k4) =>
+        k5 := k4.asFormula { (k4) =>
           k4 + 5
         },
-        k4.assign(4),
-        k3.dependsOn(k4) { k4 =>
+        k4 := Constant(4),
+        k3 := k4.asFormula { k4 =>
           k4 + 3
         },
-        k2.dependsOn(k4) { k4 =>
+        k2 := k4.asFormula { k4 =>
           k4 + 2
         },
-        k1.dependsOn(k2, k3) { (k2, k3) =>
+        k1 := Requires(k2, k3) { (k2, k3) =>
           // make sure k2's cache will always expire after this round of execution
           Thread.sleep(30)
           k2 + k3 + 1
@@ -116,11 +123,11 @@ class LogicTest
     val k1 = Token[Int]("k1")
     val k2 = Token[Int]("k2")
     val k3 = Token[Int]("k3")
-    val logic = Logic(Seq(k1.assign({
+    val logic = Logic(Seq(k1 := Constant({
       throw new Exception("hello niffler")
-    }), k2.dependsOn(k1) { (k1) =>
+    }), k2 := k1.asFormula { (k1) =>
       k1 + 1
-    }, k3.dependsOn(k2) { (k2) =>
+    }, k3 := k2.asFormula { (k2) =>
       k2 + 1
     }))
 
@@ -137,11 +144,11 @@ class LogicTest
   it should "run with amends only for a key and existing cache entry" in {
     val t2: Token[Int] = Token("an int")
     val t3: Token[Int] = Token("another int")
-    val t3Amend1: DataFlowOperation[Int] = t3.amendWith(t2) { (v2) =>
+    val t3Amend1: DataFlowOperation[Int] = t3 += t2.asFormula { (v2) =>
       v2
     }
-    val t3Amend2: DataFlowOperation[Int] = t3.amendWith(1)
-    val logic3: Logic = Logic(Seq(t3Amend1, t3Amend2, t2.assign(6)))
+    val t3Amend2: DataFlowOperation[Int] = t3 += Constant(1)
+    val logic3: Logic = Logic(Seq(t3Amend1, t3Amend2, t2 := Constant(6)))
     logic3
       .syncRun(t3, cache = ExecutionCache.fromValue(Map(t3 -> 42)), timeout = timeout.duration)
       .result shouldBe 49
@@ -150,11 +157,11 @@ class LogicTest
   it should "run with amends only for a key and no cache entry" in {
     val t2: Token[Int] = Token("an int")
     val t3: Token[Int] = Token("another int")
-    val t3Amend1: DataFlowOperation[Int] = t3.amendWith(t2) { (v2) =>
+    val t3Amend1: DataFlowOperation[Int] = t3 += t2.asFormula { (v2) =>
       v2
     }
-    val t3Amend2: DataFlowOperation[Int] = t3.amendWith(1)
-    val logic3: Logic = Logic(Seq(t3Amend1, t3Amend2, t2.assign(6)))
+    val t3Amend2: DataFlowOperation[Int] = t3 += Constant(1)
+    val logic3: Logic = Logic(Seq(t3Amend1, t3Amend2, t2 := Constant(6)))
     logic3.syncRun(t3, timeout = timeout.duration).result shouldBe 7
   }
 
@@ -162,10 +169,9 @@ class LogicTest
     val t1: Token[String] = Token("a string")
     val t2: Token[Int] = Token("an int")
     val t3: Token[Int] = Token("another int")
-    val t3Impl: DataFlowOperation[Int] = t3
-      .dependsOn(t1, t2) { (t1, v2) =>
-        t1.length + v2
-      }
+    val t3Impl: DataFlowOperation[Int] = t3 := Requires(t1, t2) { (t1, v2) =>
+      t1.length + v2
+    }
     val logic3: Logic = Logic(Seq(t3Impl))
     val ex = intercept[NifflerInvocationException] {
       logic3.syncRun(t3)
@@ -177,10 +183,10 @@ class LogicTest
     val k1 = Token[Int]("k1")
     val k2 = Token[Int]("k2")
     val k3 = Token[Int]("k3")
-    val logic = Logic(Seq(k1.assign(1), k2.dependsOn(k1) { (k1) =>
+    val logic = Logic(Seq(k1 := Constant(1), k2 := k1.asFormula { (k1) =>
       Thread.sleep(200)
       k1 + 1
-    }, k3.dependsOn(k2) { (k2) =>
+    }, k3 := k2.asFormula { (k2) =>
       k2 + 1
     }))
 

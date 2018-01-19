@@ -2,6 +2,7 @@ package com.roboxue.niffler.monitoring
 
 import java.io.IOException
 
+import com.roboxue.niffler.syntax.{Constant, Requires}
 import com.roboxue.niffler.{Niffler, Token}
 import org.http4s.HttpService
 import org.http4s.server.blaze.BlazeBuilder
@@ -22,7 +23,7 @@ object NifflerMonitor extends Niffler {
     "launch the monitor service and return the server instance"
   )
 
-  $$(nifflerMonitorService.dependsOn(nifflerMonitorSubServices) { (subServices) =>
+  $$(nifflerMonitorService := nifflerMonitorSubServices.asFormula { (subServices) =>
     import org.http4s.dsl._
     import org.http4s.twirl._
     HttpService {
@@ -31,12 +32,12 @@ object NifflerMonitor extends Niffler {
     }
   })
 
-  $$(nifflerMonitorServicePortNumber.assign(4080))
+  $$(nifflerMonitorServicePortNumber := Constant(4080))
 
-  $$(nifflerMonitorServiceRetry.assign(5))
+  $$(nifflerMonitorServiceRetry := Constant(5))
 
   $$(
-    nifflerMonitorSubServices.amendWith(
+    nifflerMonitorSubServices += Constant(
       SubServiceWrapper(
         "Static File Service",
         "Serving static files",
@@ -47,7 +48,7 @@ object NifflerMonitor extends Niffler {
   )
 
   $$(
-    nifflerMonitorStartServer.dependsOn(
+    nifflerMonitorStartServer := Requires(
       nifflerMonitorService,
       nifflerMonitorServicePortNumber,
       nifflerMonitorServiceRetry,
