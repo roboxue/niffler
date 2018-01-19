@@ -3,8 +3,8 @@ package com.roboxue.niffler
 /**
   * [[RegularOperation]] is the default implementation of [[DataFlowOperation]].
   *
-  * To create a [[RegularOperation]], use helper methods in [[com.roboxue.niffler.syntax.Requires]] or
-  * [[Token]](via [[com.roboxue.niffler.syntax.TokenSyntax]]
+  * To create a [[RegularOperation]], use helper methods in [[com.roboxue.niffler.syntax.Requires]],
+  * [[com.roboxue.niffler.syntax.Constant]], or [[Token.asFormula]]
   *
   * @param token   this [[Token]] wil be represented by the value calculated using [[formula]] in runtime
   * @param formula the [[Formula]] used to calculate the [[token]]'s value

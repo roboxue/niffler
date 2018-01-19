@@ -4,14 +4,6 @@ Niffler: Dataflow programming for Scala
 
 <strong>Self optimize, Self document, Self monitor</strong>
 
-**Niffler** is a made-up "Magic creature" in Harry Porter series. It was featured in the recent movie *Fantastic Beasts and Where to Find Them*. It's essentially a "wallet" that knows how to fill itself up... I'm naming after this library based on Niffler's nature as a container of Token, and a symbol of "greedy" for a better developer experience (we know greedy is no a bad word in computer science)
-
-> "Nifflers had a pouch on their bellies which held far more than at first seemed possible, like the effects of an Undetectable Extension Charm on a container."
-
-![niffler](https://78.media.tumblr.com/79cbce85198fb94f302ed8f7b47fa394/tumblr_inline_oivo7hMSOA1qbxxlx_500.gif)
-
-> "It's time to be greedy"  
-
 ## Install
 published to Maven Central and cross-built for Scala 2.11 and 2.12, so you can just add the following to your build.sbt
 
@@ -31,11 +23,14 @@ libraryDependencies ++= Seq(
 It's a set of lightweight DSL that encourages developer to write application logic in [Pure functions](https://en.wikipedia.org/wiki/Pure_function) 
 and assembly these logic fragments into executable [DAGs](https://en.wikipedia.org/wiki/Directed_acyclic_graph) in runtime.
 
+![img](img/niffler_syntax_illustration.jpg)
+
+
 ## Why use Niffler / Dataflow Programming
 By using Niffler, you can easily utilize what data flow programming provides, plus additional operation benefits --
 
 #### Self Optimize
-Thanks to the nature of Data flow programming, there is some obvious benefits you can get. Excerpts from wiki are pretty good summary already:
+Thanks to the nature of Data flow programming, your program can execute itself in the best possible way. Excerpts from wiki are pretty good summary already:
 - Parallelism
 > A dataflow program is more like a series of workers on an assembly line, each doing a specific task whenever materials are available ...   
   Dataflow languages are inherently parallel and can work well in large, decentralized systems
@@ -44,7 +39,7 @@ Thanks to the nature of Data flow programming, there is some obvious benefits yo
 
 #### Self Documentation
 More than the programming paradigm, Niffler has great operation utilities!
-- Visualize your code base as a DAG: Thanks to the nature of Data flow programming, it's straight forward to visualize your codebase
+- Visualize your code base as a DAG: because of the nature of Data flow programming, it's straight forward to visualize your codebase
 > A traditional program is usually represented as a series of text instructions  
   (However) the flow of data is explicit, often visually illustrated as a line or pipe.
 - Opportunity to dump svg files at compile time. 
@@ -63,7 +58,11 @@ Application monitoring and benchmarking becomes extremely easy using Niffler. Yo
 * `Logic` is the core part of Niffler, implemented as a HashMap, where the key is a `Token` and value is a `Formula`
 * `Token[T]` is the description and metadata of a data, similar to "A variable declaration with documentation string"
 * `Formula[T]` is a wrapper of function `(D1, D2, D3.., Dn) => T`, plus a sequence of `Token` as prerequisites,  
-  and they have to be of type `Token[D1], Token[D2], Token[D3], ..., Token[Dn]`
+  and they have to be of type `Token[D1], Token[D2], Token[D3], ..., Token[Dn]`.
+  To create a `Formula`
+  - use one of the helper functions among `Requires.apply(...)` to declare dependency on multiple tokens 
+  - `Constant.apply(...)` to declare zero dependency and yield a constant in runtime
+  - `Token.asFormula(...)` to declare dependency on a single `Token` and perform an optional transform on it 
 * `DataFlowOperation` is a pair of `Token` and `Formula`. Thus `Logic` can also be viewed as a collection of `DataFlowOperation`. Treat `DataFlowOperation` as "sentences" in other language as the base unit that will be evaluated in runtime
 
 ##### Running code
@@ -82,6 +81,14 @@ Application monitoring and benchmarking becomes extremely easy using Niffler. Yo
 ##### Organizing code
 * `Niffler` is a trait that has a private collection of `DataFlowOperation`, with helper functions to add new `DataFlowOperation` into this collection 
 * `Nifller`, being a collection of `DataFlowOperation`, can be converted directly into a `Logic`. You can also combine a few Nifflers to make a unioned `Logic`
+
+**Niffler** is a made-up "Magic creature" in Harry Porter series. It was featured in the recent movie *Fantastic Beasts and Where to Find Them*. It's essentially a "wallet" that knows how to fill itself up... I'm naming after this library based on Niffler's nature as a container of Token, and a symbol of "greedy" for a better developer experience (we know greedy is no a bad word in computer science)
+
+> "Nifflers had a pouch on their bellies which held far more than at first seemed possible, like the effects of an Undetectable Extension Charm on a container."
+
+![niffler](https://78.media.tumblr.com/79cbce85198fb94f302ed8f7b47fa394/tumblr_inline_oivo7hMSOA1qbxxlx_500.gif)
+
+> "It's time to be greedy"  
 
 ![niffler](https://vignette.wikia.nocookie.net/harrypotter/images/2/2e/Niffler_gold.gif/revision/latest/scale-to-width-down/235?cb=20170516221338)
 > ^^ A `niffler` whose collection of `DataFlowOperation`s is being dumped into a `Logic`
