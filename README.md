@@ -9,7 +9,7 @@ published to Maven Central and cross-built for Scala 2.11 and 2.12, so you can j
 
 [![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.roboxue/niffler-core_2.11/badge.svg?subject=niffler_2.11)](https://maven-badges.herokuapp.com/maven-central/com.roboxue/niffler-core_2.11)  
 [![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.roboxue/niffler-core_2.12/badge.svg?subject=niffler_2.12)](https://maven-badges.herokuapp.com/maven-central/com.roboxue/niffler-core_2.12)  
-```sbtshell
+```sbt
 val nifflerVersion = "0.2.1" // for latest version see the badges above
 
 libraryDependencies ++= Seq(
@@ -30,7 +30,7 @@ and assembly these logic fragments into executable [DAGs](https://en.wikipedia.o
 By using Niffler, you can easily utilize what data flow programming provides, plus additional operation benefits --
 
 #### Self Optimize
-Thanks to the nature of Data flow programming, your program can execute itself in the best possible way. Excerpts from wiki are pretty good summary already:
+Thanks to the nature of Data flow programming, your program can execute itself in the best possible way. Excerpts from [wikipedia](https://en.wikipedia.org/wiki/Dataflow_programming) are pretty good summary already:
 - Parallelism
 > A dataflow program is more like a series of workers on an assembly line, each doing a specific task whenever materials are available ...   
   Dataflow languages are inherently parallel and can work well in large, decentralized systems
@@ -81,17 +81,6 @@ Application monitoring and benchmarking becomes extremely easy using Niffler. Yo
 ##### Organizing code
 * `Niffler` is a trait that has a private collection of `DataFlowOperation`, with helper functions to add new `DataFlowOperation` into this collection 
 * `Nifller`, being a collection of `DataFlowOperation`, can be converted directly into a `Logic`. You can also combine a few Nifflers to make a unioned `Logic`
-
-**Niffler** is a made-up "Magic creature" in Harry Porter series. It was featured in the recent movie *Fantastic Beasts and Where to Find Them*. It's essentially a "wallet" that knows how to fill itself up... I'm naming after this library based on Niffler's nature as a container of Token, and a symbol of "greedy" for a better developer experience (we know greedy is no a bad word in computer science)
-
-> "Nifflers had a pouch on their bellies which held far more than at first seemed possible, like the effects of an Undetectable Extension Charm on a container."
-
-![niffler](https://78.media.tumblr.com/79cbce85198fb94f302ed8f7b47fa394/tumblr_inline_oivo7hMSOA1qbxxlx_500.gif)
-
-> "It's time to be greedy"  
-
-![niffler](https://vignette.wikia.nocookie.net/harrypotter/images/2/2e/Niffler_gold.gif/revision/latest/scale-to-width-down/235?cb=20170516221338)
-> ^^ A `niffler` whose collection of `DataFlowOperation`s is being dumped into a `Logic`
 
 ##### Tutorial
 see [NifflerSyntaxDemo.scala](example/src/main/scala/com/roboxue/niffler/examples/NifflerSyntaxDemo.scala)
@@ -199,3 +188,16 @@ Live view of on going executions, know where it stucks, no maigc
 To release, make sure pgp key and sonatype credential is in the correct location, then execute 
 - `sbt "release with-defaults"` for minor version updates
 - `sbt release` for major version updates
+
+### What is Niffler?
+**Niffler** is a made-up "Magic creature" in Harry Porter series. It was featured in the recent movie *Fantastic Beasts and Where to Find Them*. It's essentially a "wallet" that knows how to fill itself up... I'm naming after this library based on Niffler's nature as a container of Token, and a symbol of "greedy" for a better developer experience (we know greedy is no a bad word in computer science)
+
+> "Nifflers had a pouch on their bellies which held far more than at first seemed possible, like the effects of an Undetectable Extension Charm on a container."
+
+![niffler](https://78.media.tumblr.com/79cbce85198fb94f302ed8f7b47fa394/tumblr_inline_oivo7hMSOA1qbxxlx_500.gif)
+
+> "It's time to be greedy"  
+
+![niffler](https://vignette.wikia.nocookie.net/harrypotter/images/2/2e/Niffler_gold.gif/revision/latest/scale-to-width-down/235?cb=20170516221338)
+> ^^ A `niffler` whose collection of `DataFlowOperation`s is being dumped into a `Logic`
+
