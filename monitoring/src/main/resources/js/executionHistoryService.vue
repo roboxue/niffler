@@ -2,8 +2,7 @@
     <div class="container-fluid">
         <div class="row">
             <div class="col-md-3 bg-secondary px-1"
-                 id="sidebar"
-                 style="height: 100%; overflow: scroll;">
+                 id="sidebar">
                 <div class="card">
                     <div class="card-header" id="headingLiveExecutions">
                         <h5 class="mb-0 d-flex justify-content-between align-items-center"
@@ -59,15 +58,9 @@
                 </div>
             </div>
             <div class="col-md-9">
-                <h1 class="display-3">Execution Details
-                    <span v-if="activeExecution">for #{{activeExecution.executionId}}</span>
-                </h1>
-                <h3 class="text-muted" v-if="activeExecution">
-                    <i class="fa fa-spinner fa-spin" v-show="socket && socket.readyState === 1"></i>
-                    As of {{new Date(activeExecution.asOfTime).toISOString()}} ({{activeExecution.asOfTime}})
-                </h3>
                 <logic-dag v-if="activeExecution"
                            :model="activeExecution"
+                           :live="socket && socket.readyState === 1"
                 />
             </div>
         </div>

@@ -1,117 +1,140 @@
 <template>
-    <div style="width: 100%; height: 100%; max-height: 1200px">
-        <div class="card">
-            <div class="card-header">Token View</div>
-            <div class="card-body" v-if="activeToken !== undefined">
-                <div class="d-flex justify-content-between">
-                    <h3 class="card-title">{{activeToken.codeName}}</h3>
-                    <code>{{activeToken.returnType}}</code>
+    <div class="row">
+        <div class="col-12">
+            <h1>Execution Details
+                <span v-if="model">for #{{model.executionId}}</span>
+            </h1>
+            <h3 class="text-muted" v-if="model">
+                <i class="fa fa-spinner fa-spin" v-show="live"></i>
+                As of {{new Date(model.asOfTime).toISOString()}} ({{model.asOfTime}})
+            </h3>
+        </div>
+        <div class="col-8">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between">
+                    <p class="my-1">DAG</p>
+                    <div class="btn-group" role="group" aria-label="zoom controls">
+                        <button type="button" class="btn btn-secondary" @click="zoomOut">-</button>
+                        <button type="button" class="btn btn-secondary" @click="resetZoom">reset</button>
+                        <button type="button" class="btn btn-secondary" @click="zoomIn">+</button>
+                    </div>
                 </div>
-                <p class="card-text">{{activeToken.name}}</p>
-                <span class="badge badge-danger">Prerequisites:</span>
-                <div v-if="activeToken.prerequisites.length > 0">
-                    <a class="card-link"
-                       href="#"
-                       v-for="uuid in activeToken.prerequisites"
-                       @click.prevent="viewToken(uuid)"
-                       :key="uuid">
-                        {{tokenLookupTable[uuid].codeName}}
-                    </a>
-                </div>
-                <p v-else>(none)</p>
-                <span class="badge badge-warning">Unblocks:</span>
-                <div v-if="activeToken.successors.length > 0">
-                    <a class="card-link"
-                       href="#"
-                       v-for="uuid in activeToken.successors"
-                       @click.prevent="viewToken(uuid)"
-                       :key="uuid">
-                        {{tokenLookupTable[uuid].codeName}}
-                    </a>
-                </div>
-                <p v-else>(none)</p>
-                <span v-if="activeToken.hasOwnProperty('startTime')">
-                    <strong>Started:</strong> <span>{{activeToken.startTime}}</span>
-                    <strong>Completed:</strong> <span>{{activeToken.completeTime || 'Not completed yet'}}</span>
-                </span>
-                <span v-else>
-                    Not started yet
-                </span>
-            </div>
-            <div class="card-body" v-else>
-                <p class="card-text">Select a token to view details</p>
-            </div>
-            <div class="card-body">
-                <svg class="border border-info"
-                     style="display: inline;
+                <div class="card-body px-0 py-0">
+                    <svg class="border border-info"
+                         style="display: inline;
                             width: 100%;
-                            height: inherit; min-height: inherit; max-height: inherit; "
-                     :width="svgWidth"
-                     :height="svgHeight"
-                     id="dagLayout">
-                    <defs>
-                        <marker id="arrow" markerWidth="10" markerHeight="10" refX="0" refY="3" orient="auto"
-                                markerUnits="strokeWidth">
-                            <path d="M0,0 L0,6 L9,3 z" fill="#2c3e50"/>
-                        </marker>
-                    </defs>
-                    <g class="layers">
-                        <g v-for="(layer, layerId) in model.dag"
-                           :key="layerId">
-                            <g v-for="(token) in layer.tokens"
-                               style="cursor: pointer"
-                               @click="viewToken(token.uuid)"
-                               :key="token.uuid">
-                                <g :transform="`translate(${getTokenX(token.uuid)},${getTokenY(token.uuid)})`">
-                                    <rect :width="tokenWidth" :height="tokenHeight"
-                                          class="tokenRect"
-                                          style="fill: #ecf0f1;"
-                                    >
-                                    </rect>
-                                    <foreignObject :x="tokenTextPaddingX" :y="tokenTextPaddingY"
-                                                   :width="tokenWidth - 2 * tokenTextPaddingX"
-                                                   :height="tokenHeight - 2 * tokenTextPaddingY">
-                                        <div class="card"
-                                             :class="[`border-${colorForTokenDependencyStatus(token.uuid)}`]"
-                                             style="width: 100%; height: 100%; position: static;"
-                                             xmlns="http://www.w3.org/1999/xhtml">
-                                            <div class="card-header text-truncate m-0 p-1">
-                                                <template v-if="token === activeToken">
-                                                    <span v-if="layerId === 0" class="badge badge-warning">Root</span>
-                                                    <span v-else-if="token.prerequisites.length === 0"
-                                                          class="badge badge-success">Leaf</span>
-                                                </template>
-                                                {{token.codeName}}
-                                            </div>
-                                            <div class="card-body m-0 p-1">
-                                                <h6 class="card-subtitle text-muted">{{token.returnType}}</h6>
-                                                <p class="card-text text-truncate d-inline-block" style="width: 100%;"
-                                                   :class="[`text-${colorForTokenDependencyStatus(token.uuid)}`]">
-                                                    {{token.name}}</p>
-                                            </div>
-                                            <div class="card-footer py-1 px-1">
+                            height: inherit; "
+                         :width="svgWidth"
+                         :height="svgHeight"
+                         id="dagLayout">
+                        <defs>
+                            <marker id="arrow" markerWidth="10" markerHeight="10" refX="0" refY="3" orient="auto"
+                                    markerUnits="strokeWidth">
+                                <path d="M0,0 L0,6 L9,3 z" fill="#2c3e50"/>
+                            </marker>
+                        </defs>
+                        <g class="layers">
+                            <g v-for="(layer, layerId) in model.dag"
+                               :key="layerId">
+                                <g v-for="(token) in layer.tokens"
+                                   style="cursor: pointer"
+                                   @click="viewToken(token.uuid)"
+                                   :key="token.uuid">
+                                    <g :transform="`translate(${getTokenX(token.uuid)},${getTokenY(token.uuid)})`">
+                                        <rect :width="tokenWidth" :height="tokenHeight"
+                                              class="tokenRect"
+                                              style="fill: #ecf0f1;"
+                                        >
+                                        </rect>
+                                        <foreignObject :x="tokenTextPaddingX" :y="tokenTextPaddingY"
+                                                       :width="tokenWidth - 2 * tokenTextPaddingX"
+                                                       :height="tokenHeight - 2 * tokenTextPaddingY">
+                                            <div class="card"
+                                                 :class="[`border-${colorForTokenDependencyStatus(token.uuid)}`]"
+                                                 style="width: 100%; height: 100%; position: static;"
+                                                 xmlns="http://www.w3.org/1999/xhtml">
+                                                <div class="card-header text-truncate m-0 p-1">
+                                                    <template v-if="token === activeToken">
+                                                        <span v-if="layerId === 0" class="badge badge-warning">Root</span>
+                                                        <span v-else-if="token.prerequisites.length === 0"
+                                                              class="badge badge-success">Leaf</span>
+                                                    </template>
+                                                    {{token.codeName}}
+                                                </div>
+                                                <div class="card-body m-0 p-1">
+                                                    <h6 class="card-subtitle text-muted">{{token.returnType}}</h6>
+                                                    <p class="card-text text-truncate d-inline-block" style="width: 100%;"
+                                                       :class="[`text-${colorForTokenDependencyStatus(token.uuid)}`]">
+                                                        {{token.name}}</p>
+                                                </div>
+                                                <div class="card-footer py-1 px-1">
                                     <span class="badge" :class="`badge-${colorForTokenExecutionStatus(token.uuid)}`">
                                         &nbsp;&nbsp;
                                     </span>
-                                                <span>
+                                                    <span>
                                         {{tokenExecutionDuration(token.uuid)}}
                                     </span>
+                                                </div>
                                             </div>
-                                        </div>
-                                    </foreignObject>
+                                        </foreignObject>
+                                    </g>
+                                    <path v-for="predecessor in token.prerequisites"
+                                          :key="predecessor"
+                                          :d="lineBetweenToken(token.uuid, predecessor)"
+                                          :stroke="activeToken && activeToken.uuid === predecessor ? '#f1c40f' : (activeToken === token ? '#e74c3c' : '#bdc3c7')"
+                                          stroke-width="3"
+                                          marker-end="url(#arrow)"
+                                          fill="none"></path>
                                 </g>
-                                <path v-for="predecessor in token.prerequisites"
-                                      :key="predecessor"
-                                      :d="lineBetweenToken(token.uuid, predecessor)"
-                                      :stroke="activeToken && activeToken.uuid === predecessor ? '#f1c40f' : (activeToken === token ? '#e74c3c' : '#bdc3c7')"
-                                      stroke-width="3"
-                                      marker-end="url(#arrow)"
-                                      fill="none"></path>
-                            </g>
 
+                            </g>
                         </g>
-                    </g>
-                </svg>
+                    </svg>
+                </div>
+            </div>
+        </div>
+        <div class="col-4">
+            <div class="card">
+                <div class="card-header">Token View</div>
+                <div class="card-body" v-if="activeToken !== undefined">
+                    <div class="d-flex justify-content-between">
+                        <h3 class="card-title">{{activeToken.codeName}}</h3>
+                        <code>{{activeToken.returnType}}</code>
+                    </div>
+                    <p class="card-text">{{activeToken.name}}</p>
+                    <span class="badge badge-danger">Prerequisites:</span>
+                    <div v-if="activeToken.prerequisites.length > 0">
+                        <a class="card-link"
+                           href="#"
+                           v-for="uuid in activeToken.prerequisites"
+                           @click.prevent="viewToken(uuid)"
+                           :key="uuid">
+                            {{tokenLookupTable[uuid].codeName}}
+                        </a>
+                    </div>
+                    <p v-else>(none)</p>
+                    <span class="badge badge-warning">Unblocks:</span>
+                    <div v-if="activeToken.successors.length > 0">
+                        <a class="card-link"
+                           href="#"
+                           v-for="uuid in activeToken.successors"
+                           @click.prevent="viewToken(uuid)"
+                           :key="uuid">
+                            {{tokenLookupTable[uuid].codeName}}
+                        </a>
+                    </div>
+                    <p v-else>(none)</p>
+                    <span v-if="activeToken.hasOwnProperty('startTime')">
+                    <strong>Started:</strong> <span>{{activeToken.startTime}}</span>
+                    <strong>Completed:</strong> <span>{{activeToken.completeTime || 'Not completed yet'}}</span>
+                </span>
+                    <span v-else>
+                    Not started yet
+                </span>
+                </div>
+                <div class="card-body" v-else>
+                    <p class="card-text">Select a token to view details</p>
+                </div>
             </div>
         </div>
     </div>
@@ -119,7 +142,7 @@
 
 <script>
   Vue.component('logic-dag', {
-    props: ['model'],
+    props: ['model', 'live'],
     data: function () {
       return {
         tokenWidth: 350,
@@ -234,18 +257,34 @@
       },
       viewToken: function (tokenUuid) {
         this.activeToken = this.tokenLookupTable[tokenUuid]
+      },
+      zoomIn: function () {
+        if (this.svg) {
+          this.svg.zoomIn()
+        }
+      },
+      zoomOut: function () {
+        if (this.svg) {
+          this.svg.zoomOut()
+        }
+      },
+      resetZoom: function () {
+        if (this.svg) {
+          this.svg.resetZoom()
+        }
       }
     },
     watch: {
       'model.executionId': function (val, oldVal) {
         this.activeToken = undefined
         this.svg.updateBBox()
+        this.svg.reset()
       }
     },
     template: template,
     mounted: function () {
       this.svg = svgPanZoom('#dagLayout', {
-        controlIconsEnabled: true,
+        controlIconsEnabled: false,
         fit: false,
         minZoom: 0.2
       })
