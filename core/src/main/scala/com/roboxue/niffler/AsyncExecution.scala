@@ -17,10 +17,9 @@ import scala.util.{Failure, Success}
   * @since 12/15/17.
   */
 object AsyncExecution {
-  private val executionId: AtomicInt = AtomicInt(0)
 
   def apply[T](logic: Logic, token: Token[T], cache: ExecutionCache): AsyncExecution[T] = {
-    new AsyncExecution[T](logic, cache, token, Niffler.getActorSystem)
+    new AsyncExecution[T](logic, cache, token, NifflerRuntime.getActorSystem)
   }
 }
 
@@ -40,7 +39,7 @@ case class AsyncExecution[T] private (logic: Logic,
                                       forToken: Token[T],
                                       system: ActorSystem,
                                       clock: Clock = Clock.systemUTC(),
-                                      executionId: Int = AsyncExecution.executionId.incrementAndGet()) {
+                                      executionId: Int = NifflerRuntime.getNewExecutionId) {
   val promise: Promise[ExecutionResult[T]] = Promise()
   private var finalizedSnapshot: Option[ExecutionSnapshot] = None
   private lazy val executionActor: ActorRef =
@@ -85,7 +84,7 @@ case class AsyncExecution[T] private (logic: Logic,
     })
   }
 
-  Niffler.registerNewExecution(this)
+  NifflerRuntime.registerNewExecution(this)
   promise.future.onComplete(result => {
     finalizedSnapshot = result match {
       case Success(r) =>
@@ -96,7 +95,7 @@ case class AsyncExecution[T] private (logic: Logic,
         None // should never happen
     }
     executionActor ! PoisonPill
-    Niffler.reportExecutionComplete(this)
+    NifflerRuntime.reportExecutionComplete(this)
   })(system.dispatcher)
 
   logic.checkMissingImpl(initialCache, forToken) match {

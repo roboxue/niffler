@@ -143,8 +143,8 @@ object NifflerSyntaxDemo {
           .result == true
       )
     } finally {
-      // always call Niffler.terminate to stop the akka system that is backing it.
+      // always call NifflerRuntime.terminate to stop the akka system that is backing it.
       // unless you want this to be a daemon instance (i.e. running a server)
-      Niffler.terminate()
+      NifflerRuntime.terminate()
     }
 }

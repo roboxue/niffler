@@ -3,7 +3,7 @@ package com.roboxue.niffler.monitoring
 import com.roboxue.niffler.execution._
 import com.roboxue.niffler.monitoring.utils.{DagTopologySorter, ServiceUtils}
 import com.roboxue.niffler.syntax.{Constant, Requires}
-import com.roboxue.niffler.{AsyncExecution, Niffler, Token}
+import com.roboxue.niffler.{AsyncExecution, Niffler, NifflerRuntime, Token}
 import fs2.time.awakeEvery
 import fs2.{Scheduler, Sink, Strategy, Stream, Task}
 import io.circe.syntax._
@@ -60,7 +60,7 @@ object ExecutionHistoryService extends Niffler with ServiceUtils {
   $$(NifflerMonitor.nifflerMonitorSubServices += nifflerExecutionHistoryServiceWrapper.asFormula)
 
   private def apiGetExecutionStatus(executionId: Int): Task[Response] = {
-    val (liveExecutions, pastExecutions, _) = Niffler.getHistory
+    val (liveExecutions, pastExecutions, _) = NifflerRuntime.getHistory
     (liveExecutions ++ pastExecutions).find(_.executionId == executionId) match {
       case Some(execution) =>
         jsonResponse(Ok(asyncExecutionDetailsToJson(execution).spaces2))
@@ -71,7 +71,7 @@ object ExecutionHistoryService extends Niffler with ServiceUtils {
 
   private def apiGetExecutionStatusAsStream(executionId: Int)(implicit scheduler: Scheduler,
                                                               strategy: Strategy): Task[Response] = {
-    val (liveExecutions, pastExecutions, _) = Niffler.getHistory
+    val (liveExecutions, pastExecutions, _) = NifflerRuntime.getHistory
     (liveExecutions ++ pastExecutions).find(_.executionId == executionId) match {
       case Some(execution) =>
         val replyInitialStatus = Stream.emit(Text(asyncExecutionDetailsToJson(execution).noSpaces))
@@ -90,7 +90,7 @@ object ExecutionHistoryService extends Niffler with ServiceUtils {
   }
 
   private def apiGetNifflerStatus(): Task[Response] = {
-    val (liveExecutions, pastExecutions, capacityRemaining) = Niffler.getHistory
+    val (liveExecutions, pastExecutions, capacityRemaining) = NifflerRuntime.getHistory
     jsonResponse(
       Ok(
         Json.obj(
@@ -103,7 +103,7 @@ object ExecutionHistoryService extends Niffler with ServiceUtils {
   }
 
   private def apiUpdateCapacity(newCapacity: Int): Task[Response] = {
-    Niffler.updateExecutionHistoryCapacity(newCapacity)
+    NifflerRuntime.updateExecutionHistoryCapacity(newCapacity)
     Ok()
   }
 
