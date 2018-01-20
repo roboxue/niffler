@@ -1,46 +1,64 @@
 <template>
     <div class="container-fluid">
         <div class="row">
-            <div class="col-md-6">
-                <h1 class="display-3">Execution History</h1>
+            <div class="col-md-3 bg-secondary px-1"
+                 id="sidebar"
+                 style="height: 100%; overflow: scroll;">
                 <div class="card">
-                    <div class="card-body" v-if="loading">
-                        <h4 class="card-title">Loading...<br/>
-                            This tab will display the live executions and a portion of past execution history.
-                        </h4>
+                    <div class="card-header" id="headingLiveExecutions">
+                        <h5 class="mb-0 d-flex justify-content-between align-items-center"
+                            data-target="#liveExecutionsList"
+                            aria-expanded="true"
+                            aria-controls="liveExecutionsList"
+                            data-toggle="collapse">
+                            Live executions
+                            <span class="badge badge-primary badge-pill">{{liveExecutions.length}}</span>
+                        </h5>
                     </div>
-                    <template v-else>
-                        <div class="card-header">
-                            <span class="badge badge-secondary">{{liveExecutions.length}}</span> Live executions
+                    <div id="liveExecutionsList"
+                         class="collapse show"
+                         aria-labelledby="headingLiveExecutions"
+                         data-parent="#sidebar">
+                        <div class="list-group">
+                            <history-execution
+                                    v-for="(exe) in liveExecutions"
+                                    v-on:view="viewExecution"
+                                    :model="exe"
+                                    :key="exe.executionId"
+                            >
+                            </history-execution>
                         </div>
-                        <div class="card-body" v-show="liveExecutions.length === 0">
-                            <p class="card-text">empty</p>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-header" id="headingPastExecutions">
+                        <h5 class="mb-0 d-flex justify-content-between align-items-center"
+                            data-target="#pastExecutionsList"
+                            aria-expanded="true"
+                            aria-controls="pastExecutionsList"
+                            data-toggle="collapse">
+                            Past executions
+                            <span class="badge badge-primary badge-pill">{{pastExecutions.length}}</span>
+                        </h5>
+                    </div>
+                    <div id="pastExecutionsList"
+                         class="collapse show"
+                         aria-labelledby="headingPastExecutions"
+                         data-parent="#sidebar">
+                        <p class="list-group-item disabled">Storage capacity: {{capacity}}</p>
+                        <div class="list-group">
+                            <history-execution
+                                    v-for="(exe) in pastExecutions"
+                                    v-on:view="viewExecution"
+                                    :model="exe"
+                                    :key="exe.executionId"
+                            >
+                            </history-execution>
                         </div>
-                        <history-execution
-                                v-for="(exe) in liveExecutions"
-                                v-on:view="viewExecution"
-                                :model="exe"
-                                :key="exe.executionId"
-                        >
-                        </history-execution>
-                        <div class="card-header">
-                            <span class="badge badge-secondary">{{pastExecutions.length}}</span> Past executions
-                        </div>
-                        <div class="card-body">
-                            <p class="card-subtitle text-muted">Storage capacity: {{capacity}}</p>
-                            <p class="card-text" v-show="pastExecutions.length === 0">empty</p>
-                        </div>
-                        <history-execution
-                                v-for="(exe) in pastExecutions"
-                                v-on:view="viewExecution"
-                                :model="exe"
-                                :key="exe.executionId"
-                        >
-                        </history-execution>
-                    </template>
+                    </div>
                 </div>
             </div>
-            <div class="col-md-6">
+            <div class="col-md-9">
                 <h1 class="display-3">Execution Details
                     <span v-if="activeExecution">for #{{activeExecution.executionId}}</span>
                 </h1>

@@ -41,75 +41,79 @@
             <div class="card-body" v-else>
                 <p class="card-text">Select a token to view details</p>
             </div>
-        </div>
-        <svg class="border border-info"
-             style="display: inline;
-                    width: inherit; min-width: inherit; max-width: inherit;
-                    height: inherit; min-height: inherit; max-height: inherit; "
-             :width="svgWidth"
-             :height="svgHeight"
-             id="dagLayout">
-            <defs>
-                <marker id="arrow" markerWidth="10" markerHeight="10" refX="0" refY="3" orient="auto" markerUnits="strokeWidth">
-                    <path d="M0,0 L0,6 L9,3 z" fill="#2c3e50" />
-                </marker>
-            </defs>
-            <g class="layers">
-                <g v-for="(layer, layerId) in model.dag"
-                   :key="layerId">
-                    <g v-for="(token) in layer.tokens"
-                       style="cursor: pointer"
-                       @click="viewToken(token.uuid)"
-                       :key="token.uuid">
-                        <g :transform="`translate(${getTokenX(token.uuid)},${getTokenY(token.uuid)})`">
-                            <rect :width="tokenWidth" :height="tokenHeight"
-                                  class="tokenRect"
-                                  style="fill: #ecf0f1;"
-                            >
-                            </rect>
-                            <foreignObject :x="tokenTextPaddingX" :y="tokenTextPaddingY"
-                                           :width="tokenWidth - 2 * tokenTextPaddingX"
-                                           :height="tokenHeight - 2 * tokenTextPaddingY">
-                                <div class="card"
-                                     :class="[`border-${colorForTokenDependencyStatus(token.uuid)}`]"
-                                     style="width: 100%; height: 100%; position: static;"
-                                     xmlns="http://www.w3.org/1999/xhtml">
-                                    <div class="card-header text-truncate m-0 p-1">
-                                        <template v-if="token === activeToken">
-                                            <span v-if="layerId === 0" class="badge badge-warning">Root</span>
-                                            <span v-else-if="token.prerequisites.length === 0" class="badge badge-success">Leaf</span>
-                                        </template>
-                                        {{token.codeName}}
-                                    </div>
-                                    <div class="card-body m-0 p-1">
-                                        <h6 class="card-subtitle text-muted">{{token.returnType}}</h6>
-                                        <p class="card-text text-truncate d-inline-block" style="width: 100%;"
-                                           :class="[`text-${colorForTokenDependencyStatus(token.uuid)}`]">
-                                            {{token.name}}</p>
-                                    </div>
-                                    <div class="card-footer py-1 px-1">
+            <div class="card-body">
+                <svg class="border border-info"
+                     style="display: inline;
+                            width: 100%;
+                            height: inherit; min-height: inherit; max-height: inherit; "
+                     :width="svgWidth"
+                     :height="svgHeight"
+                     id="dagLayout">
+                    <defs>
+                        <marker id="arrow" markerWidth="10" markerHeight="10" refX="0" refY="3" orient="auto"
+                                markerUnits="strokeWidth">
+                            <path d="M0,0 L0,6 L9,3 z" fill="#2c3e50"/>
+                        </marker>
+                    </defs>
+                    <g class="layers">
+                        <g v-for="(layer, layerId) in model.dag"
+                           :key="layerId">
+                            <g v-for="(token) in layer.tokens"
+                               style="cursor: pointer"
+                               @click="viewToken(token.uuid)"
+                               :key="token.uuid">
+                                <g :transform="`translate(${getTokenX(token.uuid)},${getTokenY(token.uuid)})`">
+                                    <rect :width="tokenWidth" :height="tokenHeight"
+                                          class="tokenRect"
+                                          style="fill: #ecf0f1;"
+                                    >
+                                    </rect>
+                                    <foreignObject :x="tokenTextPaddingX" :y="tokenTextPaddingY"
+                                                   :width="tokenWidth - 2 * tokenTextPaddingX"
+                                                   :height="tokenHeight - 2 * tokenTextPaddingY">
+                                        <div class="card"
+                                             :class="[`border-${colorForTokenDependencyStatus(token.uuid)}`]"
+                                             style="width: 100%; height: 100%; position: static;"
+                                             xmlns="http://www.w3.org/1999/xhtml">
+                                            <div class="card-header text-truncate m-0 p-1">
+                                                <template v-if="token === activeToken">
+                                                    <span v-if="layerId === 0" class="badge badge-warning">Root</span>
+                                                    <span v-else-if="token.prerequisites.length === 0"
+                                                          class="badge badge-success">Leaf</span>
+                                                </template>
+                                                {{token.codeName}}
+                                            </div>
+                                            <div class="card-body m-0 p-1">
+                                                <h6 class="card-subtitle text-muted">{{token.returnType}}</h6>
+                                                <p class="card-text text-truncate d-inline-block" style="width: 100%;"
+                                                   :class="[`text-${colorForTokenDependencyStatus(token.uuid)}`]">
+                                                    {{token.name}}</p>
+                                            </div>
+                                            <div class="card-footer py-1 px-1">
                                     <span class="badge" :class="`badge-${colorForTokenExecutionStatus(token.uuid)}`">
                                         &nbsp;&nbsp;
                                     </span>
-                                        <span>
+                                                <span>
                                         {{tokenExecutionDuration(token.uuid)}}
                                     </span>
-                                    </div>
-                                </div>
-                            </foreignObject>
-                        </g>
-                        <path v-for="predecessor in token.prerequisites"
-                              :key="predecessor"
-                              :d="lineBetweenToken(token.uuid, predecessor)"
-                              :stroke="activeToken && activeToken.uuid === predecessor ? '#f1c40f' : (activeToken === token ? '#e74c3c' : '#bdc3c7')"
-                              stroke-width="3"
-                              marker-end="url(#arrow)"
-                              fill="none"></path>
-                    </g>
+                                            </div>
+                                        </div>
+                                    </foreignObject>
+                                </g>
+                                <path v-for="predecessor in token.prerequisites"
+                                      :key="predecessor"
+                                      :d="lineBetweenToken(token.uuid, predecessor)"
+                                      :stroke="activeToken && activeToken.uuid === predecessor ? '#f1c40f' : (activeToken === token ? '#e74c3c' : '#bdc3c7')"
+                                      stroke-width="3"
+                                      marker-end="url(#arrow)"
+                                      fill="none"></path>
+                            </g>
 
-                </g>
-            </g>
-        </svg>
+                        </g>
+                    </g>
+                </svg>
+            </div>
+        </div>
     </div>
 </template>
 
@@ -185,7 +189,7 @@
       lineBetweenToken: function (tokenUuid1, tokenUuid2) {
         let point1 = [this.getTokenX(tokenUuid1) - 30, this.getTokenY(tokenUuid1) + this.tokenHeight * 2 / 3]
         let point2 = [this.getTokenX(tokenUuid2) - 5, this.getTokenY(tokenUuid2) + this.tokenHeight / 3]
-        return `M${point2[0]},${point2[1]} C${point2[0] - 150},${point2[1]} ${- 100},${point1[1]} ${point1[0]},${point1[1]}`
+        return `M${point2[0]},${point2[1]} C${point2[0] - 150},${point2[1]} ${-100},${point1[1]} ${point1[0]},${point1[1]}`
       },
       tokenExecutionDuration: function (tokenUuid) {
         let token = this.tokenLookupTable[tokenUuid]

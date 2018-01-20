@@ -164,7 +164,7 @@ After:
     // doc string binds to Token
 	val p1 = Token[String]("p1Description")
 	val p2 = Token[Int]("p2Description")
-    // doc string can be programmicatlly generated!
+    // doc string can be programmatically generated!
     val myWork = Token[Boolean](s"myWorkDescription uses ${p1.name}")
     val myOtherWork = Token[Boolean]("myOtherWorkDescription")
     // only 4 lines of doc strings, and that is really the minimum you can get
