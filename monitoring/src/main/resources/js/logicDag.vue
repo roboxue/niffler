@@ -9,6 +9,94 @@
                 As of {{prettyPrintTime(model.asOfTime)}} ({{model.asOfTime}})
             </h3>
         </div>
+        <div class="col-4">
+            <div class="card mb-1">
+                <div class="card-header">Token View</div>
+                <div class="card-body" v-if="activeToken !== undefined">
+                    <!--metadata-->
+                    <h3 class="card-title">{{activeToken.codeName}}</h3>
+                    <blockquote class="blockquote">{{activeToken.name}}</blockquote>
+                    <!--prerequisites-->
+                    <span class="badge badge-danger">Prerequisites:</span>
+                    <ul class="nav flex-column">
+                        <li class="nav-item"
+                            v-for="uuid in activeToken.prerequisites"
+                            :key="uuid">
+                            <a href="#"
+                               @click.prevent="viewToken(uuid)"
+                               class="nav-link">
+                                {{tokenLookupTable[uuid].codeName}}
+                            </a>
+                        </li>
+                        <li class="nav-item" v-if="activeToken.prerequisites.length === 0">
+                            <a class="nav-link disabled" href="#">Leaf token</a>
+                        </li>
+                    </ul>
+                    <!--successors-->
+                    <span class="badge badge-warning">Unblocks:</span>
+                    <ul class="nav flex-column">
+                        <li class="nav-item"
+                            v-for="uuid in activeToken.successors"
+                            :key="uuid">
+                            <a href="#"
+                               class="nav-link"
+                               @click.prevent="viewToken(uuid)">
+                                {{tokenLookupTable[uuid].codeName}}
+                            </a>
+                        </li>
+                        <li class="nav-item" v-if="activeToken.successors.length === 0">
+                            <a class="nav-link disabled" href="#">Root token</a>
+                        </li>
+                    </ul>
+                    <!--token timeline-->
+                    <template v-if="activeToken.hasOwnProperty('startTime')">
+                        <p>
+                            <strong>Begin:</strong>
+                            {{prettyPrintTime(activeToken.startTime)}} (<span>{{activeToken.startTime}}</span>)
+                        </p>
+                        <template v-if="activeToken.hasOwnProperty('completeTime')">
+                            <p>
+                                <strong>End:</strong>
+                                {{prettyPrintTime(activeToken.completeTime)}} (<span>{{activeToken.completeTime}}</span>)
+                            </p>
+                            <p>
+                                <strong>Duration:</strong>
+                                <span>{{activeToken.completeTime - activeToken.startTime}}</span> ms
+                            </p>
+                        </template>
+                        <p v-else>
+                            Not completed yet
+                        </p>
+                    </template>
+                    <span v-else>
+                        Not started yet
+                    </span>
+                </div>
+                <div class="card-body" v-else>
+                    <p class="card-text">Select a token to view details</p>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-header">Timeline</div>
+                <table class="table table-sm table-responsive">
+                    <thead>
+                    <tr>
+                        <th scope="col">Time</th>
+                        <th scope="col">Event</th>
+                        <th scope="col">Token</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr :class="event.eventType === 'begin' ? 'table-light' : 'table-success'"
+                        v-for="event in sortedTimelineEvents">
+                        <td>{{event.time}}</td>
+                        <td>{{event.eventType}}</td>
+                        <td><a href="#" @click.prevent="viewToken(event.tokenUuid)">{{event.tokenName}}</a></td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
         <div class="col-8">
             <div class="card">
                 <div class="card-header d-flex justify-content-between">
@@ -89,94 +177,6 @@
                         </g>
                     </svg>
                 </div>
-            </div>
-        </div>
-        <div class="col-4">
-            <div class="card mb-1">
-                <div class="card-header">Token View</div>
-                <div class="card-body" v-if="activeToken !== undefined">
-                    <!--metadata-->
-                    <h3 class="card-title">{{activeToken.codeName}}</h3>
-                    <blockquote class="blockquote">{{activeToken.name}}</blockquote>
-                    <!--prerequisites-->
-                    <span class="badge badge-danger">Prerequisites:</span>
-                    <ul class="nav flex-column">
-                        <li class="nav-item"
-                            v-for="uuid in activeToken.prerequisites"
-                            :key="uuid">
-                            <a href="#"
-                               @click.prevent="viewToken(uuid)"
-                               class="nav-link">
-                                {{tokenLookupTable[uuid].codeName}}
-                            </a>
-                        </li>
-                        <li class="nav-item" v-if="activeToken.prerequisites.length === 0">
-                            <a class="nav-link disabled" href="#">Leaf token</a>
-                        </li>
-                    </ul>
-                    <!--successors-->
-                    <span class="badge badge-warning">Unblocks:</span>
-                    <ul class="nav flex-column">
-                        <li class="nav-item"
-                            v-for="uuid in activeToken.successors"
-                            :key="uuid">
-                            <a href="#"
-                               class="nav-link"
-                               @click.prevent="viewToken(uuid)">
-                                {{tokenLookupTable[uuid].codeName}}
-                            </a>
-                        </li>
-                        <li class="nav-item" v-if="activeToken.successors.length === 0">
-                            <a class="nav-link disabled" href="#">Root token</a>
-                        </li>
-                    </ul>
-                    <!--token timeline-->
-                    <template v-if="activeToken.hasOwnProperty('startTime')">
-                        <p>
-                            <strong>Begin:</strong>
-                            {{prettyPrintTime(activeToken.startTime)}} (<span>{{activeToken.startTime}}</span>)
-                        </p>
-                        <template v-if="activeToken.hasOwnProperty('completeTime')">
-                            <p>
-                                <strong>End:</strong>
-                                {{prettyPrintTime(activeToken.completeTime)}} (<span>{{activeToken.completeTime}}</span>)
-                            </p>
-                            <p>
-                                <strong>Duration:</strong>
-                                <span>{{activeToken.completeTime - activeToken.startTime}}</span> ms
-                            </p>
-                        </template>
-                        <p v-else>
-                            Not completed yet
-                        </p>
-                    </template>
-                    <span v-else>
-                        Not started yet
-                    </span>
-                </div>
-                <div class="card-body" v-else>
-                    <p class="card-text">Select a token to view details</p>
-                </div>
-            </div>
-            <div class="card">
-                <div class="card-header">Timeline</div>
-                <table class="table table-sm">
-                    <thead>
-                    <tr>
-                        <th scope="col">Time</th>
-                        <th scope="col">Event</th>
-                        <th scope="col">Token</th>
-                    </tr>
-                    </thead>
-                    <tbody>
-                    <tr :class="event.eventType === 'begin' ? 'table-light' : 'table-success'"
-                        v-for="event in sortedTimelineEvents">
-                        <td>{{event.time}}</td>
-                        <td>{{event.eventType}}</td>
-                        <td><a href="#" @click.prevent="viewToken(event.tokenUuid)">{{event.tokenName}}</a></td>
-                    </tr>
-                    </tbody>
-                </table>
             </div>
         </div>
     </div>
