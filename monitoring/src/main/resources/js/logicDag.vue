@@ -92,7 +92,7 @@
             </div>
         </div>
         <div class="col-4">
-            <div class="card">
+            <div class="card mb-1">
                 <div class="card-header">Token View</div>
                 <div class="card-body" v-if="activeToken !== undefined">
                     <!--metadata-->
@@ -158,6 +158,26 @@
                     <p class="card-text">Select a token to view details</p>
                 </div>
             </div>
+            <div class="card">
+                <div class="card-header">Timeline</div>
+                <table class="table table-sm">
+                    <thead>
+                    <tr>
+                        <th scope="col">Time</th>
+                        <th scope="col">Event</th>
+                        <th scope="col">Token</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr :class="event.eventType === 'begin' ? 'table-light' : 'table-success'"
+                        v-for="event in sortedTimelineEvents">
+                        <td>{{event.time}}</td>
+                        <td>{{event.eventType}}</td>
+                        <td><a href="#" @click.prevent="viewToken(event.tokenUuid)">{{event.tokenName}}</a></td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
 </template>
@@ -216,6 +236,34 @@
           }
         })
         return lookup
+      },
+      sortedTimelineEvents: function () {
+        let events = []
+        let vm = this
+        this.model.timeline.forEach((timeLineInfo) => {
+          let token = vm.tokenLookupTable[timeLineInfo.uuid]
+          switch (timeLineInfo.status) {
+            case "running":
+              events.push({tokenUuid: timeLineInfo.uuid, tokenName: token.codeName, eventType: "begin", time: timeLineInfo.startTime})
+              break
+            case "completed":
+              events.push({tokenUuid: timeLineInfo.uuid, tokenName: token.codeName, eventType: "begin", time: timeLineInfo.startTime})
+              events.push({tokenUuid: timeLineInfo.uuid, tokenName: token.codeName, eventType: "end", time: timeLineInfo.completeTime})
+              break
+            default:
+              break
+          }
+        })
+        events.sort((a, b) => {
+          if (a.time < b.time) {
+            return 1
+          } else if (a.time > b.time) {
+            return -1
+          } else {
+            return 0
+          }
+        })
+        return events
       },
       tokensWrappingCount: function () {
         return (this.svgWidth - this.tokenWidth) / this.tokenPaddingX + 1
