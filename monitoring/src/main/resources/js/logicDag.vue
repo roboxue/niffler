@@ -1,12 +1,12 @@
 <template>
     <div class="row">
-        <div class="col-12">
-            <h1>Execution Details
+        <div class="col-12 d-flex justify-content-between">
+            <h3>Execution Details
                 <span v-if="model">for #{{model.executionId}}</span>
-            </h1>
+            </h3>
             <h3 class="text-muted" v-if="model">
                 <i class="fa fa-spinner fa-spin" v-show="live"></i>
-                As of {{new Date(model.asOfTime).toISOString()}} ({{model.asOfTime}})
+                As of {{prettyPrintTime(model.asOfTime)}} ({{model.asOfTime}})
             </h3>
         </div>
         <div class="col-8">
@@ -53,9 +53,10 @@
                                                  :class="[`border-${colorForTokenDependencyStatus(token.uuid)}`]"
                                                  style="width: 100%; height: 100%; position: static;"
                                                  xmlns="http://www.w3.org/1999/xhtml">
-                                                <div class="card-header text-truncate m-0 p-1">
+                                                <div class="card-header text-truncate m-0 p-1" :title="token.codeName">
                                                     <template v-if="token === activeToken">
-                                                        <span v-if="layerId === 0" class="badge badge-warning">Root</span>
+                                                        <span v-if="layerId === 0"
+                                                              class="badge badge-warning">Root</span>
                                                         <span v-else-if="token.prerequisites.length === 0"
                                                               class="badge badge-success">Leaf</span>
                                                     </template>
@@ -63,17 +64,15 @@
                                                 </div>
                                                 <div class="card-body m-0 p-1">
                                                     <h6 class="card-subtitle text-muted">{{token.returnType}}</h6>
-                                                    <p class="card-text text-truncate d-inline-block" style="width: 100%;"
-                                                       :class="[`text-${colorForTokenDependencyStatus(token.uuid)}`]">
-                                                        {{token.name}}</p>
                                                 </div>
                                                 <div class="card-footer py-1 px-1">
-                                    <span class="badge" :class="`badge-${colorForTokenExecutionStatus(token.uuid)}`">
-                                        &nbsp;&nbsp;
-                                    </span>
+                                                    <span class="badge"
+                                                          :class="`badge-${colorForTokenExecutionStatus(token.uuid)}`">
+                                                        &nbsp;&nbsp;
+                                                    </span>
                                                     <span>
-                                        {{tokenExecutionDuration(token.uuid)}}
-                                    </span>
+                                                        {{tokenExecutionDuration(token.uuid)}}
+                                                    </span>
                                                 </div>
                                             </div>
                                         </foreignObject>
@@ -86,7 +85,6 @@
                                           marker-end="url(#arrow)"
                                           fill="none"></path>
                                 </g>
-
                             </g>
                         </g>
                     </svg>
@@ -97,40 +95,64 @@
             <div class="card">
                 <div class="card-header">Token View</div>
                 <div class="card-body" v-if="activeToken !== undefined">
-                    <div class="d-flex justify-content-between">
-                        <h3 class="card-title">{{activeToken.codeName}}</h3>
-                        <code>{{activeToken.returnType}}</code>
-                    </div>
-                    <p class="card-text">{{activeToken.name}}</p>
+                    <!--metadata-->
+                    <h3 class="card-title">{{activeToken.codeName}}</h3>
+                    <blockquote class="blockquote">{{activeToken.name}}</blockquote>
+                    <!--prerequisites-->
                     <span class="badge badge-danger">Prerequisites:</span>
-                    <div v-if="activeToken.prerequisites.length > 0">
-                        <a class="card-link"
-                           href="#"
-                           v-for="uuid in activeToken.prerequisites"
-                           @click.prevent="viewToken(uuid)"
-                           :key="uuid">
-                            {{tokenLookupTable[uuid].codeName}}
-                        </a>
-                    </div>
-                    <p v-else>(none)</p>
+                    <ul class="nav flex-column">
+                        <li class="nav-item"
+                            v-for="uuid in activeToken.prerequisites"
+                            :key="uuid">
+                            <a href="#"
+                               @click.prevent="viewToken(uuid)"
+                               class="nav-link">
+                                {{tokenLookupTable[uuid].codeName}}
+                            </a>
+                        </li>
+                        <li class="nav-item" v-if="activeToken.prerequisites.length === 0">
+                            <a class="nav-link disabled" href="#">Leaf token</a>
+                        </li>
+                    </ul>
+                    <!--successors-->
                     <span class="badge badge-warning">Unblocks:</span>
-                    <div v-if="activeToken.successors.length > 0">
-                        <a class="card-link"
-                           href="#"
-                           v-for="uuid in activeToken.successors"
-                           @click.prevent="viewToken(uuid)"
-                           :key="uuid">
-                            {{tokenLookupTable[uuid].codeName}}
-                        </a>
-                    </div>
-                    <p v-else>(none)</p>
-                    <span v-if="activeToken.hasOwnProperty('startTime')">
-                    <strong>Started:</strong> <span>{{activeToken.startTime}}</span>
-                    <strong>Completed:</strong> <span>{{activeToken.completeTime || 'Not completed yet'}}</span>
-                </span>
+                    <ul class="nav flex-column">
+                        <li class="nav-item"
+                            v-for="uuid in activeToken.successors"
+                            :key="uuid">
+                            <a href="#"
+                               class="nav-link"
+                               @click.prevent="viewToken(uuid)">
+                                {{tokenLookupTable[uuid].codeName}}
+                            </a>
+                        </li>
+                        <li class="nav-item" v-if="activeToken.successors.length === 0">
+                            <a class="nav-link disabled" href="#">Root token</a>
+                        </li>
+                    </ul>
+                    <!--token timeline-->
+                    <template v-if="activeToken.hasOwnProperty('startTime')">
+                        <p>
+                            <strong>Begin:</strong>
+                            {{prettyPrintTime(activeToken.startTime)}} (<span>{{activeToken.startTime}}</span>)
+                        </p>
+                        <template v-if="activeToken.hasOwnProperty('completeTime')">
+                            <p>
+                                <strong>End:</strong>
+                                {{prettyPrintTime(activeToken.completeTime)}} (<span>{{activeToken.completeTime}}</span>)
+                            </p>
+                            <p>
+                                <strong>Duration:</strong>
+                                <span>{{activeToken.completeTime - activeToken.startTime}}</span> ms
+                            </p>
+                        </template>
+                        <p v-else>
+                            Not completed yet
+                        </p>
+                    </template>
                     <span v-else>
-                    Not started yet
-                </span>
+                        Not started yet
+                    </span>
                 </div>
                 <div class="card-body" v-else>
                     <p class="card-text">Select a token to view details</p>
@@ -145,8 +167,8 @@
     props: ['model', 'live'],
     data: function () {
       return {
-        tokenWidth: 350,
-        tokenHeight: 150,
+        tokenWidth: 300,
+        tokenHeight: 120,
         tokenPaddingX: 100,
         tokenPaddingY: 40,
         tokenTextPaddingX: 1,
@@ -171,8 +193,8 @@
         this.model.timeline.forEach((token) => {
           if (lookup.hasOwnProperty(token.uuid)) {
             lookup[token.uuid].status = token.status
-            lookup[token.uuid].startTime = token.startTime
-            lookup[token.uuid].completeTime = token.completeTime
+            if (token.hasOwnProperty('startTime')) lookup[token.uuid].startTime = token.startTime
+            if (token.hasOwnProperty('completeTime')) lookup[token.uuid].completeTime = token.completeTime
           }
         })
         this.model.dag.forEach((layer) => {
@@ -255,6 +277,9 @@
         console.log(token.executionStatus)
         return 'default'
       },
+      prettyPrintTime: function (ts) {
+        return new Date(ts).toISOString()
+      },
       viewToken: function (tokenUuid) {
         this.activeToken = this.tokenLookupTable[tokenUuid]
       },
@@ -270,7 +295,7 @@
       },
       resetZoom: function () {
         if (this.svg) {
-          this.svg.resetZoom()
+          this.svg.reset()
         }
       }
     },
