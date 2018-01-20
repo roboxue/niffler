@@ -36,16 +36,7 @@ object NifflerMonitor extends Niffler {
 
   $$(nifflerMonitorServiceRetry := Constant(5))
 
-  $$(
-    nifflerMonitorSubServices += Constant(
-      SubServiceWrapper(
-        "Static File Service",
-        "Serving static files",
-        "/static",
-        staticcontent.resourceService(staticcontent.ResourceService.Config(""))
-      )
-    )
-  )
+  $$(nifflerMonitorSubServices := Constant(Seq.empty))
 
   $$(
     nifflerMonitorStartServer := Requires(
@@ -56,7 +47,8 @@ object NifflerMonitor extends Niffler {
     ) { (service, portNumber, retry, subServices) =>
       var attempt = 0
       var launchedServer: Option[Server] = None
-      var builder = BlazeBuilder.mountService(service, "/")
+      val staticFileService = staticcontent.resourceService(staticcontent.ResourceService.Config(""))
+      var builder = BlazeBuilder.mountService(service, "/").mountService(staticFileService, "/static")
       for (SubServiceWrapper(_, _, prefix, subService) <- subServices) {
         builder = builder.mountService(subService, prefix)
       }

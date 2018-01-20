@@ -1,4 +1,4 @@
-package com.roboxue.niffler.monitoring
+package com.roboxue.niffler.monitoring.utils
 
 import org.jgrapht.Graphs
 import org.jgrapht.graph.DirectedAcyclicGraph
