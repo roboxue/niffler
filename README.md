@@ -23,6 +23,12 @@ libraryDependencies ++= Seq(
 It's a set of lightweight DSL that encourages developer to write application logic in [Pure functions](https://en.wikipedia.org/wiki/Pure_function) 
 and assembly these logic fragments into executable [DAGs](https://en.wikipedia.org/wiki/Directed_acyclic_graph) in runtime.
 
+- `Token[T]` + `Formula[T]` = `DataflowOperation[T]`
+- `Niffler` = `Logic` = `Map[Token[Any], Formula[Any]]` = `Seq[DataflowOperation[Any]]`
+- Invoke `Token[T]` within `Logic` using an `ExecutionCache`, this returns an `AsyncExecution[T]`
+- `AsyncExecution[T]` is a promise of `ExecutionResult[T]`
+- `ExecutionResult[T]` contains `result: T`
+
 **Code => Logic**
 ![img](img/niffler_syntax_illustration.jpg)
 
@@ -198,8 +204,8 @@ View Niffler `Logic` as DAG with automated telemetry
 
 ##### Housekeeping
 To release, make sure pgp key and sonatype credential is in the correct location, then execute 
-- `sbt "release with-defaults"` for minor version updates
-- `sbt release` for major version updates
+- `sbt "release cross with-defaults"` for minor version updates
+- `sbt release cross` for major version updates
 
 ### What is Niffler?
 **Niffler** is a made-up "Magic creature" in Harry Porter series. It was featured in the recent movie *Fantastic Beasts and Where to Find Them*. It's essentially a "wallet" that knows how to fill itself up... I'm naming after this library based on Niffler's nature as a container of Token, and a symbol of "greedy" for a better developer experience (we know greedy is no a bad word in computer science)
