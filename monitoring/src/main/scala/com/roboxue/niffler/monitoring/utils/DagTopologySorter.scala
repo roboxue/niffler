@@ -5,6 +5,7 @@ import org.jgrapht.graph.DirectedAcyclicGraph
 
 import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
+import scala.collection.JavaConverters._
 
 /**
   * @author rxue
@@ -12,22 +13,21 @@ import scala.collection.mutable.ListBuffer
   */
 object DagTopologySorter {
   def apply[V, E](graph: DirectedAcyclicGraph[V, E], startFrom: V): Seq[Set[V]] = {
-    import scala.collection.JavaConversions._
     if (!graph.containsVertex(startFrom)) {
       throw new IllegalArgumentException(s"vertex $startFrom doesn't belong to graph $graph")
     }
-    val unvisited = mutable.Set(graph.getAncestors(startFrom).toSeq: _*)
+    val unvisited = mutable.Set(graph.getAncestors(startFrom).asScala.toSeq: _*)
     unvisited -= startFrom
     val storage = ListBuffer(Set(startFrom))
-    var toVisit = Set(Graphs.predecessorListOf(graph, startFrom).toSeq: _*)
+    var toVisit = Set(Graphs.predecessorListOf(graph, startFrom).asScala: _*)
     while (toVisit.nonEmpty) {
       val visitNext = mutable.Set.empty[V]
       val cleared = ListBuffer.empty[V]
       for (v <- toVisit) {
-        if (unvisited.intersect(Graphs.successorListOf(graph, v).toSet).isEmpty) {
+        if (unvisited.intersect(Graphs.successorListOf(graph, v).asScala.toSet).isEmpty) {
           cleared += v
         }
-        visitNext ++= Graphs.predecessorListOf(graph, v)
+        visitNext ++= Graphs.predecessorListOf(graph, v).asScala
       }
       unvisited --= cleared
       storage += cleared.toSet

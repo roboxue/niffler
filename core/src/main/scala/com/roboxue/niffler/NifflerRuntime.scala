@@ -6,6 +6,7 @@ import com.roboxue.niffler.Niffler.argv
 import com.roboxue.niffler.syntax.Constant
 import monix.execution.atomic.AtomicInt
 
+import scala.collection.JavaConverters._
 import scala.collection.mutable
 
 /**
@@ -54,8 +55,7 @@ object NifflerRuntime {
   // execution history
   def updateExecutionHistoryCapacity(newLimit: Int): Unit = synchronized {
     val newQueue = EvictingQueue.create[AsyncExecution[_]](newLimit)
-    import scala.collection.JavaConversions._
-    newQueue.addAll(executionHistory.toSeq)
+    newQueue.addAll(executionHistory)
     executionHistory = newQueue
   }
 
@@ -68,8 +68,7 @@ object NifflerRuntime {
   }
 
   def getPastExecutions: Seq[AsyncExecution[_]] = {
-    import scala.collection.JavaConversions._
-    executionHistory.toSeq
+    executionHistory.asScala.toSeq
   }
 
   def getNewExecutionId: Int = {

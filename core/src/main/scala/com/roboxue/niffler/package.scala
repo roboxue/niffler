@@ -5,7 +5,7 @@ import org.jgrapht.GraphPath
 import org.jgrapht.alg.shortestpath.AllDirectedPaths
 import org.jgrapht.graph.DefaultEdge
 
-import scala.collection.JavaConversions._
+import scala.collection.JavaConverters._
 import scala.concurrent.duration.FiniteDuration
 import scala.language.existentials
 
@@ -57,7 +57,7 @@ package object niffler {
     def getPaths: Seq[GraphPath[Token[_], DefaultEdge]] = {
       new AllDirectedPaths(snapshot.logic.dag)
         .getAllPaths(tokenWithException, snapshot.tokenToEvaluate, true, null)
-        .toSeq
+        .asScala
     }
 
     override def getMessage: String = {

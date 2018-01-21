@@ -6,7 +6,7 @@ import com.roboxue.niffler.execution.CachingPolicy
 import org.jgrapht.Graphs
 import org.jgrapht.graph.{DefaultEdge, DirectedAcyclicGraph}
 
-import scala.collection.JavaConversions._
+import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.concurrent.duration.Duration
 
@@ -20,7 +20,7 @@ class Logic private (val name: String,
   private[niffler] val dag: DirectedAcyclicGraph[Token[_], DefaultEdge] = {
     val g = new DirectedAcyclicGraph[Token[_], DefaultEdge](classOf[DefaultEdge])
     for ((token, impl) <- bindings) {
-      Graphs.addIncomingEdges(g, token, impl.prerequisites)
+      Graphs.addIncomingEdges(g, token, impl.prerequisites.asJava)
     }
     g
   }
@@ -76,11 +76,11 @@ class Logic private (val name: String,
   }
 
   def getPredecessors(token: Token[_]): Set[Token[_]] = {
-    Graphs.predecessorListOf(dag, token).toSet
+    Graphs.predecessorListOf(dag, token).asScala.toSet
   }
 
   def getSuccessors(token: Token[_]): Set[Token[_]] = {
-    Graphs.successorListOf(dag, token).toSet
+    Graphs.successorListOf(dag, token).asScala.toSet
   }
 
   /**
@@ -111,7 +111,7 @@ class Logic private (val name: String,
   def implForToken[T](token: Token[T]): RegularOperation[T] =
     bindings(token).asInstanceOf[RegularOperation[T]]
 
-  def tokensInvolved: Set[Token[_]] = dag.vertexSet().toSet
+  def tokensInvolved: Set[Token[_]] = dag.vertexSet().asScala.toSet
 
   def cachingPolicy(token: Token[_]): CachingPolicy = cachingPolicies.getOrElse(token, CachingPolicy.Forever)
 

@@ -76,7 +76,6 @@ lazy val commonSettings = Seq(
 lazy val noPublishSettings = Seq(skip in publish := true)
 lazy val publishSettings = Seq(
   releasePublishArtifactsAction := PgpKeys.publishSigned.value,
-  releaseCrossBuild := true,
 
   homepage := Some(url("https://github.com/roboxue/niffler")),
   licenses := Seq("Apache License, Version 2.0" -> url("https://www.apache.org/licenses/LICENSE-2.0.txt")),
@@ -94,15 +93,12 @@ lazy val publishSettings = Seq(
 
 // Turn off publish for the root project
 skip in publish := true
+releaseCrossBuild in ThisBuild := true
 
 // Release settings for `sbt release`
-publishTo in ThisBuild := {
-  val nexus = "https://oss.sonatype.org/"
-  if (isSnapshot.value)
-    Some("snapshots" at nexus + "content/repositories/snapshots")
-  else
-    Some("releases" at nexus + "service/local/staging/deploy/maven2")
-}
+publishTo in ThisBuild := sonatypePublishTo.value
+releasePublishArtifactsAction := PgpKeys.publishSigned.value
+
 releaseProcess := Seq[ReleaseStep](
   checkSnapshotDependencies,
   inquireVersions,
@@ -111,7 +107,7 @@ releaseProcess := Seq[ReleaseStep](
   setReleaseVersion,
   commitReleaseVersion,
   tagRelease,
-  ReleaseStep(releaseStepCommand("publishSigned"), enableCrossBuild = true),
+  publishArtifacts,
   setNextVersion,
   commitNextVersion,
   releaseStepCommand("sonatypeReleaseAll"),
