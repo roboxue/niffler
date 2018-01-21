@@ -10,13 +10,20 @@
             </h3>
         </div>
         <div class="col-4">
-            <div class="card mb-1">
+            <div class="card mb-1" v-if="activeToken === undefined">
                 <div class="card-header">Token View</div>
-                <div class="card-body" v-if="activeToken !== undefined">
+                <div class="card-body">
+                    <p class="card-text">Select a token to view details</p>
+                </div>
+            </div>
+            <div class="card mb-1" v-else>
+                <div class="card-header">{{activeToken.codeName}}</div>
+                <div class="card-body">
                     <!--metadata-->
-                    <h3 class="card-title">{{activeToken.codeName}}</h3>
+                    <h3 class="card-title"></h3>
                     <h5>Status:
-                        <span :class="`text-${colorForTimelineEvent(activeToken.executionStatus)}`">
+                        <span class="text-uppercase"
+                              :class="`text-${colorForTimelineEvent(activeToken.executionStatus)}`">
                             {{activeToken.executionStatus}}
                         </span>
                     </h5>
@@ -37,7 +44,7 @@
                             </a>
                         </li>
                         <li class="nav-item" v-if="activeToken.prerequisites.length === 0">
-                            <a class="nav-link disabled" href="#">Leaf token</a>
+                            <a class="nav-link disabled" href="#">Leaf token depends on nothing</a>
                         </li>
                     </ul>
                     <!--successors-->
@@ -53,12 +60,14 @@
                             </a>
                         </li>
                         <li class="nav-item" v-if="activeToken.successors.length === 0">
-                            <a class="nav-link disabled" href="#">Root token</a>
+                            <a class="nav-link disabled" href="#">Root token unblocks no one</a>
                         </li>
                     </ul>
                     <!--token timeline-->
                     <h5>Timeline:</h5>
-                    <p v-for="event in timelineEventsForToken(activeToken.uuid)" class="d-flex justify-content-between">
+                    <p v-if="timelineEventsForToken.hasOwnProperty(activeToken.uuid)"
+                       v-for="event in timelineEventsForToken[activeToken.uuid]"
+                       class="d-flex justify-content-between">
                         <strong class="text-capitalize" :class="`text-${colorForTimelineEvent(event.eventType)}`">
                             {{event.eventType}}:
                         </strong>
@@ -66,7 +75,7 @@
                             {{prettyPrintTime(event.time)}} (<mark>{{event.time}}</mark>)
                         </span>
                     </p>
-                    <p v-if="timelineEventsForToken(activeToken.uuid).length === 0">
+                    <p v-else>
                         No info
                     </p>
                     <p v-if="activeToken.hasOwnProperty('startTime') && activeToken.hasOwnProperty('completeTime')"
@@ -75,8 +84,21 @@
                         <span>{{activeToken.completeTime - activeToken.startTime}} ms</span>
                     </p>
                 </div>
-                <div class="card-body" v-else>
-                    <p class="card-text">Select a token to view details</p>
+            </div>
+            <div class="card mb-1" v-if="live">
+                <div class="card-header">
+                    <h5 class="d-flex justify-content-between">
+                        <span>Ongoing evaluation</span>
+                        <span class="badge badge-primary badge-pill">{{startedTokens.length}}</span>
+                    </h5>
+                </div>
+                <div class="list-group list-group-flush">
+                    <a class="list-group-item list-group-item-warning"
+                       href="#" @click.prevent="viewToken(token.uuid)"
+                       v-for="token in startedTokens">
+                        <h5 class="my-0">{{token.codeName}}</h5>
+                        <p class="my-0">{{tokenExecutionStatusString(token.uuid)}}</p>
+                    </a>
                 </div>
             </div>
             <div class="card">
@@ -129,6 +151,17 @@
                             </marker>
                         </defs>
                         <g class="layers">
+                            <g>
+                                <foreignObject :x="(tokenWidth - rootWidth) / 2"
+                                               :width="rootWidth"
+                                               :height="rootHeight">
+                                    <div class="card text-white bg-primary"
+                                         style="width: 100%; height: 100%; position: static;"
+                                         xmlns="http://www.w3.org/1999/xhtml">
+                                        <p class="mx-auto">Root</p>
+                                    </div>
+                                </foreignObject>
+                            </g>
                             <g v-for="(layer, layerId) in model.dag"
                                :key="layerId">
                                 <g v-for="(token) in layer.tokens"
@@ -136,38 +169,23 @@
                                    @click="viewToken(token.uuid)"
                                    :key="token.uuid">
                                     <g :transform="`translate(${getTokenX(token.uuid)},${getTokenY(token.uuid)})`">
-                                        <rect :width="tokenWidth" :height="tokenHeight"
-                                              class="tokenRect"
-                                              style="fill: #ecf0f1;"
-                                        >
-                                        </rect>
-                                        <foreignObject :x="tokenTextPaddingX" :y="tokenTextPaddingY"
-                                                       :width="tokenWidth - 2 * tokenTextPaddingX"
-                                                       :height="tokenHeight - 2 * tokenTextPaddingY">
-                                            <div class="card"
-                                                 :class="[`border-${colorForTokenDependencyStatus(token.uuid)}`]"
+                                        <foreignObject :width="tokenWidth"
+                                                       :height="tokenHeight">
+                                            <div class="card text-white"
+                                                 :class="[`bg-${colorForTimelineEvent(tokenLookupTable[token.uuid].executionStatus)}`]"
                                                  style="width: 100%; height: 100%; position: static;"
                                                  xmlns="http://www.w3.org/1999/xhtml">
                                                 <div class="card-header text-truncate m-0 p-1" :title="token.codeName">
-                                                    <template v-if="token === activeToken">
-                                                        <span v-if="layerId === 0"
-                                                              class="badge badge-warning">Root</span>
-                                                        <span v-else-if="token.prerequisites.length === 0"
-                                                              class="badge badge-success">Leaf</span>
-                                                    </template>
+                                                    <span class="badge badge-warning" v-if="token === activeToken">
+                                                        <i class="fa fa-eye" aria-hidden="true"></i>
+                                                    </span>
                                                     {{token.codeName}}
                                                 </div>
                                                 <div class="card-body m-0 p-1">
-                                                    <h6 class="card-subtitle text-muted">{{token.returnType}}</h6>
+                                                    <h6 class="card-subtitle">{{token.returnType}}</h6>
                                                 </div>
                                                 <div class="card-footer py-1 px-1">
-                                                    <span class="badge"
-                                                          :class="`badge-${colorForTimelineEvent(tokenLookupTable[token.uuid].executionStatus)}`">
-                                                        &nbsp;&nbsp;
-                                                    </span>
-                                                    <span>
-                                                        {{tokenExecutionDuration(token.uuid)}}
-                                                    </span>
+                                                    {{tokenExecutionStatusString(token.uuid)}}
                                                 </div>
                                             </div>
                                         </foreignObject>
@@ -194,18 +212,28 @@
     props: ['model', 'live'],
     data: function () {
       return {
+        rootHeight: 30,
+        rootWidth: 100,
         tokenWidth: 300,
         tokenHeight: 120,
         tokenPaddingX: 100,
         tokenPaddingY: 40,
-        tokenTextPaddingX: 1,
-        tokenTextPaddingY: 1,
         svgWidth: 900,
-        activeToken: undefined,
+        activeTokenUuid: undefined,
         svg: undefined
       }
     },
     computed: {
+      activeToken: function () {
+        if (this.activeTokenUuid) {
+          return this.tokenLookupTable[this.activeTokenUuid]
+        } else {
+          return undefined
+        }
+      },
+      startedTokens: function () {
+        return Object.values(this.tokenLookupTable).filter(t => t.executionStatus === 'started')
+      },
       tokenLookupTable: function () {
         let lookup = {}
         let index = 0
@@ -245,6 +273,16 @@
         })
         return lookup
       },
+      timelineEventsForToken: function () {
+        let lookup = {}
+        this.model.timelineEvents.forEach(e => {
+          if (!lookup.hasOwnProperty(e.uuid)) {
+            lookup[e.uuid] = []
+          }
+          lookup[e.uuid].push(e)
+        })
+        return lookup
+      },
       sortedTimelineEvents: function () {
         return this.model.timelineEvents.slice().reverse()
       },
@@ -260,41 +298,28 @@
         return this.tokenPaddingX * (this.tokenLookupTable[tokenUuid].index % this.tokensWrappingCount)
       },
       getTokenY: function (tokenUuid) {
-        return (this.tokenPaddingY + this.tokenHeight) * this.tokenLookupTable[tokenUuid].index
+        return (this.tokenPaddingY + this.tokenHeight) * this.tokenLookupTable[tokenUuid].index + this.rootHeight
       },
       lineBetweenToken: function (tokenUuid1, tokenUuid2) {
         let point1 = [this.getTokenX(tokenUuid1) - 30, this.getTokenY(tokenUuid1) + this.tokenHeight * 2 / 3]
         let point2 = [this.getTokenX(tokenUuid2) - 5, this.getTokenY(tokenUuid2) + this.tokenHeight / 3]
         return `M${point2[0]},${point2[1]} C${point2[0] - 150},${point2[1]} ${-100},${point1[1]} ${point1[0]},${point1[1]}`
       },
-      tokenExecutionDuration: function (tokenUuid) {
+      tokenExecutionStatusString: function (tokenUuid) {
         let token = this.tokenLookupTable[tokenUuid]
         switch (token.executionStatus) {
           case 'failed':
             return this.model.tokenWithException === token.uuid ? 'exception' : 'missing implementation'
           case 'ended':
             return `${token.completeTime - token.startTime} ms`
-          case 'running':
-            return `since ${token.startTime}`
+          case 'started':
+            return `running for ${new Date().getTime() - token.startTime} ms`
           default:
-            return token.executionStatus
+            return token.executionStatus || 'not inspected'
         }
-      },
-      colorForTokenDependencyStatus: function (tokenUuid) {
-        if (!this.activeToken) return 'default'
-        if (this.activeToken.uuid === tokenUuid) {
-          return 'primary'
-        } else if (this.activeToken.prerequisites.includes(tokenUuid)) {
-          return 'danger'
-        } else if (this.activeToken.successors.includes(tokenUuid)) {
-          return 'warning'
-        }
-        return 'default'
       },
       colorForTimelineEvent: function (eventType) {
         switch (eventType) {
-          case 'blocked':
-            return 'secondary'
           case 'started':
             return 'warning'
           case 'cached':
@@ -304,16 +329,16 @@
             return 'info'
           case 'failed':
             return 'danger'
+          case 'blocked':
+          default:
+            return 'secondary'
         }
-      },
-      timelineEventsForToken: function (tokenUuid) {
-        return this.model.timelineEvents.filter(e => e.uuid === tokenUuid)
       },
       prettyPrintTime: function (ts) {
         return new Date(ts).toISOString()
       },
       viewToken: function (tokenUuid) {
-        this.activeToken = this.tokenLookupTable[tokenUuid]
+        this.activeTokenUuid = tokenUuid
       },
       zoomIn: function () {
         if (this.svg) {
@@ -333,7 +358,7 @@
     },
     watch: {
       'model.executionId': function (val, oldVal) {
-        this.activeToken = undefined
+        this.activeTokenUuid = undefined
         this.svg.updateBBox()
         this.svg.reset()
       }

@@ -60,7 +60,7 @@
             <div class="col-md-9">
                 <logic-dag v-if="activeExecution"
                            :model="activeExecution"
-                           :live="socket && socket.readyState === 1"
+                           :live="activeExecution.state === 'live'"
                 />
             </div>
         </div>
@@ -72,7 +72,6 @@
     template: template,
     data: function () {
       return {
-        socket: undefined,
         loading: false,
         activeExecution: undefined,
         liveExecutions: [],
@@ -102,11 +101,7 @@
       viewExecution: function (executionId) {
         let exe = this.executionLookup[executionId]
         if (exe) {
-          if (exe.state === 'live') {
-            this.loadSingleExecutionStream(executionId)
-          } else {
-            this.loadSingleExecutionDag(executionId)
-          }
+          this.loadSingleExecutionDag(executionId)
         }
       },
       loadExecutionHistory: function () {
@@ -124,28 +119,20 @@
             errorHandling(error, vm, 'get execution history')
           })
       },
-      loadSingleExecutionStream: function (executionId) {
-        let vm = this
-        if (vm.socket) {
-          vm.socket.onclose = null
-          vm.socket.close()
-        }
-        let newSocket = new WebSocket(`ws://${window.location.host}${window.location.pathname}/api/executionStream/${executionId}`)
-        newSocket.addEventListener('message', function (event) {
-          vm.activeExecution = JSON.parse(event.data)
-        })
-        newSocket.addEventListener('close', function () {
-          vm.loadExecutionHistory()
-          vm.loadSingleExecutionDag(executionId)
-          vm.socket = null
-        })
-        vm.socket = newSocket
-      },
       loadSingleExecutionDag: function (executionId) {
         let vm = this
         axios.get(window.location.pathname + `/api/execution/${executionId}`)
           .then(function (response) {
             vm.activeExecution = response.data
+            if (vm.activeExecution.state === 'live') {
+              setTimeout(() => {
+                if (vm.activeExecution && vm.activeExecution.executionId === executionId) {
+                  vm.loadSingleExecutionDag(executionId)
+                }
+              }, 300)
+            } else {
+              vm.loadExecutionHistory()
+            }
           })
           .catch(function (error) {
             vm.activeExecution = undefined
