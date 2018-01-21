@@ -22,11 +22,11 @@ class LogicTest
     with BeforeAndAfterEach {
 
   override protected def beforeEach(): Unit = {
-    Niffler.init(Array.empty, existingActorSystem = Some(system))
+    NifflerRuntime.init(Array.empty, existingActorSystem = Some(system))
   }
 
   override protected def afterEach(): Unit = {
-    Niffler.terminate(false)
+    NifflerRuntime.terminate(false)
   }
 
   it should "run with dependsOn" in {

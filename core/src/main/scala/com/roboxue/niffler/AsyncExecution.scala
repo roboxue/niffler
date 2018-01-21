@@ -6,7 +6,6 @@ import java.util.concurrent.{TimeUnit, TimeoutException}
 import akka.actor.{ActorRef, ActorSystem, PoisonPill}
 import akka.util.Timeout
 import com.roboxue.niffler.execution._
-import monix.execution.atomic.AtomicInt
 
 import scala.concurrent.duration.{Duration, FiniteDuration}
 import scala.concurrent.{Await, Promise}
@@ -17,10 +16,9 @@ import scala.util.{Failure, Success}
   * @since 12/15/17.
   */
 object AsyncExecution {
-  private val executionId: AtomicInt = AtomicInt(0)
 
   def apply[T](logic: Logic, token: Token[T], cache: ExecutionCache): AsyncExecution[T] = {
-    new AsyncExecution[T](logic, cache, token, Niffler.getActorSystem)
+    new AsyncExecution[T](logic, cache, token)
   }
 }
 
@@ -38,10 +36,11 @@ object AsyncExecution {
 case class AsyncExecution[T] private (logic: Logic,
                                       initialCache: ExecutionCache,
                                       forToken: Token[T],
-                                      system: ActorSystem,
+                                      system: ActorSystem = NifflerRuntime.getActorSystem,
                                       clock: Clock = Clock.systemUTC(),
-                                      executionId: Int = AsyncExecution.executionId.incrementAndGet()) {
+                                      executionId: Int = NifflerRuntime.getNewExecutionId) {
   val promise: Promise[ExecutionResult[T]] = Promise()
+  private var cancelled: Boolean = false
   private var finalizedSnapshot: Option[ExecutionSnapshot] = None
   private lazy val executionActor: ActorRef =
     system.actorOf(ExecutionActor.props(promise, logic, initialCache, forToken, clock))
@@ -59,7 +58,7 @@ case class AsyncExecution[T] private (logic: Logic,
       Await.result(promise.future, timeout)
     } catch {
       case _: TimeoutException if timeout.isFinite() =>
-        executionActor ! ExecutionActor.Cancel
+        executionActor ! ExecutionActor.Cancel("timeout exception")
         val ex = NifflerTimeoutException(getExecutionSnapshot, timeout.asInstanceOf[FiniteDuration])
         promise.tryFailure(ex)
         throw ex
@@ -70,8 +69,11 @@ case class AsyncExecution[T] private (logic: Logic,
     }
   }
 
-  def requestCancellation(): Unit = {
-    executionActor ! ExecutionActor.Cancel
+  def isCancelled: Boolean = cancelled
+
+  def requestCancellation(reason: String): Unit = {
+    executionActor ! ExecutionActor.Cancel(reason)
+    cancelled = true
   }
 
   def getExecutionSnapshot: ExecutionSnapshot = {
@@ -85,7 +87,7 @@ case class AsyncExecution[T] private (logic: Logic,
     })
   }
 
-  Niffler.registerNewExecution(this)
+  NifflerRuntime.registerNewExecution(this)
   promise.future.onComplete(result => {
     finalizedSnapshot = result match {
       case Success(r) =>
@@ -96,11 +98,18 @@ case class AsyncExecution[T] private (logic: Logic,
         None // should never happen
     }
     executionActor ! PoisonPill
-    Niffler.reportExecutionComplete(this)
+    NifflerRuntime.reportExecutionComplete(this)
   })(system.dispatcher)
 
   logic.checkMissingImpl(initialCache, forToken) match {
     case missingImpl if missingImpl.nonEmpty =>
+      val now = clock.millis()
+      val timelineEvents = missingImpl.toSeq.flatMap(t => {
+        Seq(
+          TimelineEvent.EvaluationStarted(t, now),
+          TimelineEvent.EvaluationFailed(t, now, NifflerCancellationException("missing implementation"))
+        )
+      })
       promise.tryFailure(
         NifflerInvocationException(
           ExecutionSnapshot(
@@ -108,9 +117,10 @@ case class AsyncExecution[T] private (logic: Logic,
             forToken,
             initialCache,
             Map.empty,
-            Some(clock.millis()),
+            Some(now),
             ExecutionStatus.Failed,
-            clock.millis()
+            timelineEvents,
+            now
           ),
           missingImpl
         )

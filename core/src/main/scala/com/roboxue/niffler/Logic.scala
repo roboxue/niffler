@@ -2,7 +2,7 @@ package com.roboxue.niffler
 
 import java.util.UUID
 
-import com.roboxue.niffler.execution.{CachingPolicy, NifflerEvaluationException, NifflerTimeoutException}
+import com.roboxue.niffler.execution.CachingPolicy
 import org.jgrapht.Graphs
 import org.jgrapht.graph.{DefaultEdge, DirectedAcyclicGraph}
 

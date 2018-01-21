@@ -1,8 +1,9 @@
 package com.roboxue.niffler.monitoring
 
 import com.roboxue.niffler.execution._
+import com.roboxue.niffler.monitoring.utils.{DagTopologySorter, ServiceUtils}
 import com.roboxue.niffler.syntax.{Constant, Requires}
-import com.roboxue.niffler.{AsyncExecution, Niffler, Token}
+import com.roboxue.niffler._
 import fs2.time.awakeEvery
 import fs2.{Scheduler, Sink, Strategy, Stream, Task}
 import io.circe.syntax._
@@ -59,7 +60,7 @@ object ExecutionHistoryService extends Niffler with ServiceUtils {
   $$(NifflerMonitor.nifflerMonitorSubServices += nifflerExecutionHistoryServiceWrapper.asFormula)
 
   private def apiGetExecutionStatus(executionId: Int): Task[Response] = {
-    val (liveExecutions, pastExecutions, _) = Niffler.getHistory
+    val (liveExecutions, pastExecutions, _) = NifflerRuntime.getHistory
     (liveExecutions ++ pastExecutions).find(_.executionId == executionId) match {
       case Some(execution) =>
         jsonResponse(Ok(asyncExecutionDetailsToJson(execution).spaces2))
@@ -70,15 +71,17 @@ object ExecutionHistoryService extends Niffler with ServiceUtils {
 
   private def apiGetExecutionStatusAsStream(executionId: Int)(implicit scheduler: Scheduler,
                                                               strategy: Strategy): Task[Response] = {
-    val (liveExecutions, pastExecutions, _) = Niffler.getHistory
+    val (liveExecutions, pastExecutions, _) = NifflerRuntime.getHistory
     (liveExecutions ++ pastExecutions).find(_.executionId == executionId) match {
       case Some(execution) =>
         val replyInitialStatus = Stream.emit(Text(asyncExecutionDetailsToJson(execution).noSpaces))
-        val toClient: Stream[Task, WebSocketFrame] = replyInitialStatus ++ awakeEvery[Task](1.seconds).map { _ =>
-          Text(asyncExecutionDetailsToJson(execution).noSpaces)
-        }.takeWhile(_ => {
-          !execution.promise.isCompleted
-        })
+        val toClient: Stream[Task, WebSocketFrame] = replyInitialStatus ++ awakeEvery[Task](1.seconds)
+          .map { _ =>
+            Text(asyncExecutionDetailsToJson(execution).noSpaces)
+          }
+          .takeWhile(_ => {
+            !execution.promise.isCompleted
+          })
         val discardClientMessages: Sink[Task, WebSocketFrame] = { (clientStream) =>
           clientStream.evalMap[Task, Task, Unit](_ => Task.delay(Unit))
         }
@@ -89,7 +92,7 @@ object ExecutionHistoryService extends Niffler with ServiceUtils {
   }
 
   private def apiGetNifflerStatus(): Task[Response] = {
-    val (liveExecutions, pastExecutions, capacityRemaining) = Niffler.getHistory
+    val (liveExecutions, pastExecutions, capacityRemaining) = NifflerRuntime.getHistory
     jsonResponse(
       Ok(
         Json.obj(
@@ -102,7 +105,7 @@ object ExecutionHistoryService extends Niffler with ServiceUtils {
   }
 
   private def apiUpdateCapacity(newCapacity: Int): Task[Response] = {
-    Niffler.updateExecutionHistoryCapacity(newCapacity)
+    NifflerRuntime.updateExecutionHistoryCapacity(newCapacity)
     Ok()
   }
 
@@ -125,9 +128,10 @@ object ExecutionHistoryService extends Niffler with ServiceUtils {
         "tokenType" -> Json.fromString(a.forToken.returnTypeDescription),
         "startAt" -> a.getExecutionSnapshot.invocationTime.asJson,
         "state" -> Json.fromString(a.promise.future.value match {
-          case None             => "live"
-          case Some(Success(_)) => "success"
-          case Some(Failure(_)) => "failure"
+          case None                              => "live"
+          case Some(Success(_))                  => "success"
+          case Some(Failure(_)) if a.isCancelled => "cancelled"
+          case Some(Failure(_))                  => "failure"
         })
       )
       val extra = a.promise.future.value match {
@@ -166,26 +170,7 @@ object ExecutionHistoryService extends Niffler with ServiceUtils {
       val snapshot = a.getExecutionSnapshot
       val tokensByLayer: Seq[Set[Token[_]]] = DagTopologySorter(snapshot.logic.dag, snapshot.tokenToEvaluate)
       asyncExecutionToJson(a).deepMerge({
-        val ongoing = for ((token, startTime) <- snapshot.ongoing) yield {
-          Json.obj("uuid" -> token.uuid.asJson, "status" -> "running".asJson, "startTime" -> startTime.asJson)
-        }
-        val finished = snapshot.cache.storage.map({
-          case (token, cacheEntry) =>
-            cacheEntry.entryType match {
-              case ExecutionCacheEntryType.TokenEvaluationStats(start, end) =>
-                Json.obj(
-                  "uuid" -> token.uuid.asJson,
-                  "status" -> "completed".asJson,
-                  "startTime" -> start.asJson,
-                  "completeTime" -> end.asJson
-                )
-              case ExecutionCacheEntryType.Injected =>
-                Json.obj("uuid" -> token.uuid.asJson, "status" -> "injected".asJson)
-              case ExecutionCacheEntryType.Cached =>
-                Json.obj("uuid" -> token.uuid.asJson, "status" -> "cached".asJson)
-            }
-        })
-        Json.obj("targetToken" -> tokenToJson(snapshot.tokenToEvaluate), "dag" -> (for (tokens <- tokensByLayer) yield {
+        val dag = (for (tokens <- tokensByLayer) yield {
           val tokensJson = tokens
             .map(t => {
               val prerequisitesUuid = snapshot.logic.getPredecessors(t).map(d => d.uuid)
@@ -197,7 +182,25 @@ object ExecutionHistoryService extends Niffler with ServiceUtils {
             })
             .asJson
           Json.obj("tokens" -> tokensJson)
-        }).asJson, "asOfTime" -> snapshot.asOfTime.asJson, "timeline" -> (ongoing ++ finished).asJson)
+        }).asJson
+        val timelineEvents = (for (event <- snapshot.timelineEvents) yield {
+          Json
+            .obj("uuid" -> event.token.uuid.asJson, "time" -> event.time.asJson, "eventType" -> event.eventType.asJson)
+            .deepMerge(event match {
+              case TimelineEvent.EvaluationCancelled(_, _, reason) =>
+                Json.obj("reason" -> reason.asJson)
+              case TimelineEvent.EvaluationFailed(_, _, ex) =>
+                Json.obj("exceptionMessage" -> ex.getMessage.asJson)
+              case _ =>
+                Json.obj()
+            })
+        }).asJson
+        Json.obj(
+          "targetToken" -> tokenToJson(snapshot.tokenToEvaluate),
+          "dag" -> dag,
+          "asOfTime" -> snapshot.asOfTime.asJson,
+          "timelineEvents" -> timelineEvents
+        )
       })
     }
   }

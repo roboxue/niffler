@@ -1,4 +1,4 @@
-package com.roboxue.niffler.monitoring
+package com.roboxue.niffler.monitoring.utils
 
 import fs2.Task
 import org.http4s.MediaType.`application/json`

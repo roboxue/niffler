@@ -3,17 +3,23 @@
 
 @template("Niffler Monitoring Service") {
 <div class="container">
-        Hello Niffler
-    <div class="card-columns">
-    @for(SubServiceWrapper(name, description, prefix, _) <- subServices) {
-        <div class="card">
-            <div class="card-body">
-                <h4 class="card-title">@name</h4>
-                <p class="card-text">@description</p>
-                <a class="btn btn-primary" href="@prefix">@prefix <i class="fa fa-link"></i></a>
+    <div class="jumbotron">
+        <h1 class="display-3">Niffler Monitoring Service</h1>
+        <h4 class="lead">
+            Niffler Monitoring Service is a collection of microservices helping you to debug your application.
+        </h4>
+        <div class="card-columns">
+        @for(SubServiceWrapper(name, description, prefix, _) <- subServices) {
+            <div class="card">
+                <div class="card-body">
+                    <h4 class="card-title">@name</h4>
+                    <p class="card-text">@description</p>
+                    <a class="btn btn-primary" href="@prefix">@prefix <i class="fa fa-link"></i></a>
+                </div>
             </div>
+        }
         </div>
-    }
+        <p>Click any microservice card to access them</p>
     </div>
 </div>
 }

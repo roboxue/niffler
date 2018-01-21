@@ -94,8 +94,13 @@ see [NifflerSyntaxDemo.scala](example/src/main/scala/com/roboxue/niffler/example
   > This might be trival again if your application is simple. But if your repo is a collection of complex datapipelines, and/or they are currently sharing status like failed/succeeded using file system, give Niffler a try. Niffler eliminates the need of a standalone scheduling system, and provides the state sharing utilities from `ExecutionCache`
 
 ##### Better monitoring
-- Out-of-box web UI: [example](#example-3) There is an optional out-of-box utility server that can be brought up with one line. This UI will display every Niffler DAG's execution status, allowing you to visually inspect which part of your logic is throwing exceptions and how your DAG is executed in parallel.
+- Using `niffler-monitoring` package, you'll have access to a powerful web-ui with one line
+```scala
+Niffler.combine(NifflerMonitor, ExecutionHistoryService).asyncRun(NifflerMonitor.nifflerMonitorStartServer)
+```
+- Out-of-box web UI will display every Niffler DAG's execution status, allowing you to visually inspect which part of your logic is throwing exceptions and how your DAG is executed in parallel.
 - Automatic performance metrics: Remeber the times you need to do timings like `println("this operation took ${endTime - startTime} millis")`? Since there is a clear logic boundry among `DataFlowOperation`, this is done automatically by Niffler now.
+-  [screenshots](#example-3)
 
 ##### Better maintenance
 - Maximize code reuse and testability: Break application logic down into `DataFlowOperation`([Pure functions](https://en.wikipedia.org/wiki/Pure_function)), so that every line of code in this function is reusable and testable
@@ -164,7 +169,7 @@ After:
     // doc string binds to Token
 	val p1 = Token[String]("p1Description")
 	val p2 = Token[Int]("p2Description")
-    // doc string can be programmicatlly generated!
+    // doc string can be programmatically generated!
     val myWork = Token[Boolean](s"myWorkDescription uses ${p1.name}")
     val myOtherWork = Token[Boolean]("myOtherWorkDescription")
     // only 4 lines of doc strings, and that is really the minimum you can get
@@ -175,14 +180,14 @@ After:
 ```
 
 ##### Example 3
-Automatical list the topology of the `Logic`, and record the execution time for each `Token` in the `Logic`
-![image](https://user-images.githubusercontent.com/4080835/34626160-3d12bbfc-f221-11e7-9496-194b9c78d58c.png)
+View all Niffler `Executions` on your jvm in supporting web-ui
+![image](img/niffler_ui_execution_list.png)
 
-Pin point where is the exception 
-![image](https://user-images.githubusercontent.com/4080835/34626952-54d40392-f224-11e7-9e9a-6e14f59722d8.png)
+Pin point where is the exception when debugging your app
+![image](img/niffler_ui_timeline_debuging.png)
 
-Live view of on going executions, know where it stucks, no maigc
-![image](https://user-images.githubusercontent.com/4080835/34626898-287463a0-f224-11e7-9ab8-8750bb6846f7.png)
+View Niffler `Logic` as DAG with automated telemetry
+![image](img/niffler_ui_dag.png)
 
 ##### Housekeeping
 To release, make sure pgp key and sonatype credential is in the correct location, then execute 

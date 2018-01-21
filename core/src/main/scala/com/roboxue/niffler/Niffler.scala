@@ -19,7 +19,7 @@ trait Niffler {
   private[niffler] val cachingPolicies = mutable.Map.empty[Token[_], CachingPolicy]
 
   def getLogic: Logic = {
-    Logic(Niffler.getGlobalOperations ++ collectImplementations, cachingPolicies.toMap, nifflerName)
+    Logic(NifflerRuntime.getGlobalOperations ++ collectImplementations, cachingPolicies.toMap, nifflerName)
   }
 
   protected def addOperation(op: => DataFlowOperation[_]): Unit = {
@@ -52,77 +52,6 @@ object Niffler {
     n.getLogic
   }
 
-  def init(args: Array[String],
-           executionHistoryLimit: Int = 20,
-           existingActorSystem: Option[ActorSystem] = None): Unit = {
-    executionHistory = EvictingQueue.create(executionHistoryLimit)
-    actorSystem = existingActorSystem
-    addGlobalOperation(argv := Constant(args))
-  }
-
-  def updateExecutionHistoryCapacity(newLimit: Int): Unit = synchronized {
-    val newQueue = EvictingQueue.create[AsyncExecution[_]](newLimit)
-    import scala.collection.JavaConversions._
-    newQueue.addAll(executionHistory.toSeq)
-    executionHistory = newQueue
-  }
-
-  def terminate(shutdownAkkaSystem: Boolean = true): Unit = synchronized {
-    for (execution <- liveExecutions) {
-      execution.requestCancellation()
-    }
-    if (shutdownAkkaSystem) {
-      actorSystem.foreach(_.terminate())
-    }
-    liveExecutions.clear()
-    executionHistory.clear()
-    actorSystem = None
-    globalOperationsMap.clear()
-  }
-
-  def addGlobalOperation(impl: DataFlowOperation[_]): Unit = {
-    globalOperationsMap(impl.token) = impl
-  }
-
-  def getGlobalOperations: Iterable[DataFlowOperation[_]] = {
-    globalOperationsMap.values
-  }
-
-  // internal global state
-  private var actorSystem: Option[ActorSystem] = None
-  private val globalOperationsMap: mutable.Map[Token[_], DataFlowOperation[_]] = mutable.Map.empty
-  private val liveExecutions: mutable.Set[AsyncExecution[_]] = mutable.Set.empty
-  private var executionHistory: EvictingQueue[AsyncExecution[_]] = EvictingQueue.create(20)
-
-  private[niffler] def getHistory: (Seq[AsyncExecution[_]], Seq[AsyncExecution[_]], Int) = synchronized {
-    (getLiveExecutions, getPastExecutions, executionHistory.remainingCapacity())
-  }
-
-  private[niffler] def getLiveExecutions: Seq[AsyncExecution[_]] = {
-    liveExecutions.toSeq
-  }
-
-  private[niffler] def getPastExecutions: Seq[AsyncExecution[_]] = {
-    import scala.collection.JavaConversions._
-    executionHistory.toSeq
-  }
-
-  private[niffler] def registerNewExecution(execution: AsyncExecution[_]): Unit = {
-    liveExecutions.add(execution)
-  }
-
-  private[niffler] def reportExecutionComplete(execution: AsyncExecution[_]): Unit = synchronized {
-    liveExecutions.remove(execution)
-    executionHistory.offer(execution)
-  }
-
-  private[niffler] def getActorSystem: ActorSystem = {
-    if (actorSystem.isEmpty) {
-      actorSystem = Some(ActorSystem("niffler"))
-    }
-    actorSystem.get
-  }
-
   // type class
   implicit def nifflerIsLogic(niffler: Niffler): Logic = {
     niffler.getLogic
@@ -145,6 +74,10 @@ private class MutableNiffler {
   }
 
   def getLogic: Logic = {
-    Logic(Niffler.getGlobalOperations ++ implementations.toList.map(_.apply()), cachingPolicies.toMap, nifflerName)
+    Logic(
+      NifflerRuntime.getGlobalOperations ++ implementations.toList.map(_.apply()),
+      cachingPolicies.toMap,
+      nifflerName
+    )
   }
 }
