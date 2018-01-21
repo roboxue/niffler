@@ -1,7 +1,6 @@
 package com.roboxue.niffler.examples
 
 import com.roboxue.niffler._
-import com.roboxue.niffler.execution.NifflerInvocationException
 import com.roboxue.niffler.monitoring.{ExecutionHistoryService, NifflerMonitor}
 import com.roboxue.niffler.syntax.{Constant, Requires}
 
@@ -145,6 +144,6 @@ object NifflerSyntaxDemo {
     } finally {
       // always call NifflerRuntime.terminate to stop the akka system that is backing it.
       // unless you want this to be a daemon instance (i.e. running a server)
-      NifflerRuntime.terminate()
+      //NifflerRuntime.terminate()
     }
 }

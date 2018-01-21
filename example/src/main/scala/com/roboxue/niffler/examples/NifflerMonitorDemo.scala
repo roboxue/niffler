@@ -45,6 +45,11 @@ object NifflerMonitorDemo {
     }), t4 := Requires(t1, t2) { _.length + _ }, t5 := Requires(t4, t3) { _ + _ }))
     logic3.asyncRun(t5)
 
+    // try cancel execution
+    val run = logic3.asyncRun(t5)
+    Thread.sleep(1000)
+    run.requestCancellation("niffler demo")
+
     // missing implementation for a token will yield a quick runtime exception
     val logic4 = Logic(Iterable(t1 := Constant({
       Thread.sleep(10000)

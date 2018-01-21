@@ -40,6 +40,7 @@ case class AsyncExecution[T] private (logic: Logic,
                                       clock: Clock = Clock.systemUTC(),
                                       executionId: Int = NifflerRuntime.getNewExecutionId) {
   val promise: Promise[ExecutionResult[T]] = Promise()
+  private var cancelled: Boolean = false
   private var finalizedSnapshot: Option[ExecutionSnapshot] = None
   private lazy val executionActor: ActorRef =
     system.actorOf(ExecutionActor.props(promise, logic, initialCache, forToken, clock))
@@ -57,7 +58,7 @@ case class AsyncExecution[T] private (logic: Logic,
       Await.result(promise.future, timeout)
     } catch {
       case _: TimeoutException if timeout.isFinite() =>
-        requestCancellation("timeout exception")
+        executionActor ! ExecutionActor.Cancel("timeout exception")
         val ex = NifflerTimeoutException(getExecutionSnapshot, timeout.asInstanceOf[FiniteDuration])
         promise.tryFailure(ex)
         throw ex
@@ -68,8 +69,11 @@ case class AsyncExecution[T] private (logic: Logic,
     }
   }
 
+  def isCancelled: Boolean = cancelled
+
   def requestCancellation(reason: String): Unit = {
     executionActor ! ExecutionActor.Cancel(reason)
+    cancelled = true
   }
 
   def getExecutionSnapshot: ExecutionSnapshot = {
@@ -99,6 +103,13 @@ case class AsyncExecution[T] private (logic: Logic,
 
   logic.checkMissingImpl(initialCache, forToken) match {
     case missingImpl if missingImpl.nonEmpty =>
+      val now = clock.millis()
+      val timelineEvents = missingImpl.toSeq.flatMap(t => {
+        Seq(
+          TimelineEvent.EvaluationStarted(t, now),
+          TimelineEvent.EvaluationFailed(t, now, NifflerCancellationException("missing implementation"))
+        )
+      })
       promise.tryFailure(
         NifflerInvocationException(
           ExecutionSnapshot(
@@ -106,10 +117,10 @@ case class AsyncExecution[T] private (logic: Logic,
             forToken,
             initialCache,
             Map.empty,
-            Some(clock.millis()),
+            Some(now),
             ExecutionStatus.Failed,
-            Seq.empty,
-            clock.millis()
+            timelineEvents,
+            now
           ),
           missingImpl
         )

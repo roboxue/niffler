@@ -38,6 +38,8 @@
         switch (state) {
           case 'live':
             return 'warning'
+          case 'cancelled':
+            return 'info'
           case 'success':
             return 'success'
           case 'failure':

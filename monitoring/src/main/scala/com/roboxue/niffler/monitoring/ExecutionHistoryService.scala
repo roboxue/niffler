@@ -3,7 +3,7 @@ package com.roboxue.niffler.monitoring
 import com.roboxue.niffler.execution._
 import com.roboxue.niffler.monitoring.utils.{DagTopologySorter, ServiceUtils}
 import com.roboxue.niffler.syntax.{Constant, Requires}
-import com.roboxue.niffler.{AsyncExecution, Niffler, NifflerRuntime, Token}
+import com.roboxue.niffler._
 import fs2.time.awakeEvery
 import fs2.{Scheduler, Sink, Strategy, Stream, Task}
 import io.circe.syntax._
@@ -128,9 +128,10 @@ object ExecutionHistoryService extends Niffler with ServiceUtils {
         "tokenType" -> Json.fromString(a.forToken.returnTypeDescription),
         "startAt" -> a.getExecutionSnapshot.invocationTime.asJson,
         "state" -> Json.fromString(a.promise.future.value match {
-          case None             => "live"
-          case Some(Success(_)) => "success"
-          case Some(Failure(_)) => "failure"
+          case None                              => "live"
+          case Some(Success(_))                  => "success"
+          case Some(Failure(_)) if a.isCancelled => "cancelled"
+          case Some(Failure(_))                  => "failure"
         })
       )
       val extra = a.promise.future.value match {
@@ -169,25 +170,6 @@ object ExecutionHistoryService extends Niffler with ServiceUtils {
       val snapshot = a.getExecutionSnapshot
       val tokensByLayer: Seq[Set[Token[_]]] = DagTopologySorter(snapshot.logic.dag, snapshot.tokenToEvaluate)
       asyncExecutionToJson(a).deepMerge({
-        val ongoing = for ((token, startTime) <- snapshot.ongoing) yield {
-          Json.obj("uuid" -> token.uuid.asJson, "status" -> "running".asJson, "startTime" -> startTime.asJson)
-        }
-        val finished = snapshot.cache.storage.map({
-          case (token, cacheEntry) =>
-            cacheEntry.entryType match {
-              case ExecutionCacheEntryType.TokenEvaluationStats(start, end) =>
-                Json.obj(
-                  "uuid" -> token.uuid.asJson,
-                  "status" -> "completed".asJson,
-                  "startTime" -> start.asJson,
-                  "completeTime" -> end.asJson
-                )
-              case ExecutionCacheEntryType.Injected =>
-                Json.obj("uuid" -> token.uuid.asJson, "status" -> "injected".asJson)
-              case ExecutionCacheEntryType.Cached =>
-                Json.obj("uuid" -> token.uuid.asJson, "status" -> "cached".asJson)
-            }
-        })
         val dag = (for (tokens <- tokensByLayer) yield {
           val tokensJson = tokens
             .map(t => {
@@ -203,21 +185,20 @@ object ExecutionHistoryService extends Niffler with ServiceUtils {
         }).asJson
         val timelineEvents = (for (event <- snapshot.timelineEvents) yield {
           Json
-            .obj("uuid" -> event.token.uuid.asJson, "time" -> event.time.asJson)
+            .obj("uuid" -> event.token.uuid.asJson, "time" -> event.time.asJson, "eventType" -> event.eventType.asJson)
             .deepMerge(event match {
               case TimelineEvent.EvaluationCancelled(_, _, reason) =>
                 Json.obj("reason" -> reason.asJson)
               case TimelineEvent.EvaluationFailed(_, _, ex) =>
-                Json.obj("exceptionMessage" -> ex.getMessage().asJson)
+                Json.obj("exceptionMessage" -> ex.getMessage.asJson)
               case _ =>
-                Json.Null
+                Json.obj()
             })
         }).asJson
         Json.obj(
           "targetToken" -> tokenToJson(snapshot.tokenToEvaluate),
           "dag" -> dag,
           "asOfTime" -> snapshot.asOfTime.asJson,
-          "timeline" -> (ongoing ++ finished).asJson,
           "timelineEvents" -> timelineEvents
         )
       })

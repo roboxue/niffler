@@ -54,10 +54,6 @@ class ExecutionActor[T](promise: Promise[ExecutionResult[T]],
                 visited += p
               }
             } else {
-              if (!visited.contains(p)) {
-                timelineEvents += TimelineEvent.ScheduledToExecute(p, clock.millis())
-                visited += p
-              }
               visitNextBatch += p
               unmetPredecessors += p
             }
@@ -65,6 +61,10 @@ class ExecutionActor[T](promise: Promise[ExecutionResult[T]],
           if (unmetPredecessors.isEmpty) {
             canTriggerImmediately += t
           } else {
+            if (!visited.contains(t)) {
+              timelineEvents += TimelineEvent.EvaluationBlocked(t, clock.millis())
+              visited += t
+            }
             unmetPrerequisites += t
           }
         }
@@ -80,8 +80,10 @@ class ExecutionActor[T](promise: Promise[ExecutionResult[T]],
     case Event(ExecutionActor.GetSnapshot, _) =>
       sender() ! getExecutionSnapshot(clock.millis(), None)
       stay()
-    case Event(ExecutionActor.Cancel(reason), _) =>
+    case Event(ExecutionActor.Cancel(reason), invokeTime) =>
+      val now = clock.millis()
       handleCancelRequest(reason)
+      announceFailure(forToken, NifflerCancellationException(reason), now, invokeTime)
       goto(Cancelled)
   }
 
@@ -91,13 +93,15 @@ class ExecutionActor[T](promise: Promise[ExecutionResult[T]],
         case Failure(ex) =>
           val now = clock.millis()
           timelineEvents += TimelineEvent.EvaluationFailed(token, now, ex)
-          announceFailure(token, ex, now, invokeTime)
+          executionStartTime.remove(token)
           handleCancelRequest("failure during execution")
+          announceFailure(token, ex, now, invokeTime)
           goto(Failed)
         case Success(result) =>
           val now = clock.millis()
           timelineEvents += TimelineEvent.EvaluationEnded(token, now)
           val stats = TokenEvaluationStats(executionStartTime(token), now)
+          executionStartTime.remove(token)
           // store result according to caching policy
           logic.cachingPolicy(token) match {
             case CachingPolicy.WithinExecution | CachingPolicy.Forever =>
@@ -118,8 +122,10 @@ class ExecutionActor[T](promise: Promise[ExecutionResult[T]],
     case Event(ExecutionActor.GetSnapshot, invokeTime) =>
       sender() ! getExecutionSnapshot(clock.millis(), invokeTime)
       stay()
-    case Event(ExecutionActor.Cancel(reason), _) =>
+    case Event(ExecutionActor.Cancel(reason), invokeTime) =>
+      val now = clock.millis()
       handleCancelRequest(reason)
+      announceFailure(forToken, NifflerCancellationException(reason), now, invokeTime)
       goto(Cancelled)
   }
 
@@ -148,8 +154,7 @@ class ExecutionActor[T](promise: Promise[ExecutionResult[T]],
   }
 
   def announceFailure(cause: Token[_], ex: Throwable, now: Long, invokeTime: Option[Long]): Unit = {
-    val stats = TokenEvaluationStats(executionStartTime(cause), now)
-    promise.tryFailure(NifflerEvaluationException(getExecutionSnapshot(now, invokeTime), cause, stats, ex))
+    promise.tryFailure(NifflerEvaluationException(getExecutionSnapshot(now, invokeTime), cause, ex))
   }
 
   def announceSuccess(result: T, now: Long, invokeTime: Option[Long]): Unit = {
@@ -227,7 +232,7 @@ abstract class TimelineEvent(_eventType: String) {
 object TimelineEvent {
   import scala.language.existentials
   case class CacheHit(token: Token[_], time: Long) extends TimelineEvent("cached")
-  case class ScheduledToExecute(token: Token[_], time: Long) extends TimelineEvent("scheduled")
+  case class EvaluationBlocked(token: Token[_], time: Long) extends TimelineEvent("blocked")
   case class EvaluationStarted(token: Token[_], time: Long) extends TimelineEvent("started")
   case class EvaluationEnded(token: Token[_], time: Long) extends TimelineEvent("ended")
   case class EvaluationCancelled(token: Token[_], time: Long, reason: String) extends TimelineEvent("cancelled")

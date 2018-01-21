@@ -15,9 +15,17 @@
                 <div class="card-body" v-if="activeToken !== undefined">
                     <!--metadata-->
                     <h3 class="card-title">{{activeToken.codeName}}</h3>
-                    <blockquote class="blockquote">{{activeToken.name}}</blockquote>
+                    <h5>Status:
+                        <span :class="`text-${colorForTimelineEvent(activeToken.executionStatus)}`">
+                            {{activeToken.executionStatus}}
+                        </span>
+                    </h5>
+                    <h5>Return Type:</h5>
+                    <p>{{activeToken.returnType}}</p>
+                    <h5>Doc string:</h5>
+                    <p>{{activeToken.name}}</p>
                     <!--prerequisites-->
-                    <span class="badge badge-danger">Prerequisites:</span>
+                    <h5>Prerequisites:</h5>
                     <ul class="nav flex-column">
                         <li class="nav-item"
                             v-for="uuid in activeToken.prerequisites"
@@ -33,7 +41,7 @@
                         </li>
                     </ul>
                     <!--successors-->
-                    <span class="badge badge-warning">Unblocks:</span>
+                    <h5>Unblocks:</h5>
                     <ul class="nav flex-column">
                         <li class="nav-item"
                             v-for="uuid in activeToken.successors"
@@ -49,28 +57,23 @@
                         </li>
                     </ul>
                     <!--token timeline-->
-                    <template v-if="activeToken.hasOwnProperty('startTime')">
-                        <p>
-                            <strong>Begin:</strong>
-                            {{prettyPrintTime(activeToken.startTime)}} (<span>{{activeToken.startTime}}</span>)
-                        </p>
-                        <template v-if="activeToken.hasOwnProperty('completeTime')">
-                            <p>
-                                <strong>End:</strong>
-                                {{prettyPrintTime(activeToken.completeTime)}} (<span>{{activeToken.completeTime}}</span>)
-                            </p>
-                            <p>
-                                <strong>Duration:</strong>
-                                <span>{{activeToken.completeTime - activeToken.startTime}}</span> ms
-                            </p>
-                        </template>
-                        <p v-else>
-                            Not completed yet
-                        </p>
-                    </template>
-                    <span v-else>
-                        Not started yet
-                    </span>
+                    <h5>Timeline:</h5>
+                    <p v-for="event in timelineEventsForToken(activeToken.uuid)" class="d-flex justify-content-between">
+                        <strong class="text-capitalize" :class="`text-${colorForTimelineEvent(event.eventType)}`">
+                            {{event.eventType}}:
+                        </strong>
+                        <span>
+                            {{prettyPrintTime(event.time)}} (<mark>{{event.time}}</mark>)
+                        </span>
+                    </p>
+                    <p v-if="timelineEventsForToken(activeToken.uuid).length === 0">
+                        No info
+                    </p>
+                    <p v-if="activeToken.hasOwnProperty('startTime') && activeToken.hasOwnProperty('completeTime')"
+                       class="d-flex justify-content-between">
+                        <strong>Duration:</strong>
+                        <span>{{activeToken.completeTime - activeToken.startTime}} ms</span>
+                    </p>
                 </div>
                 <div class="card-body" v-else>
                     <p class="card-text">Select a token to view details</p>
@@ -87,11 +90,15 @@
                     </tr>
                     </thead>
                     <tbody>
-                    <tr :class="event.eventType === 'begin' ? 'table-light' : 'table-success'"
+                    <tr :class="`table-${colorForTimelineEvent(event.eventType)}`"
                         v-for="event in sortedTimelineEvents">
                         <td>{{event.time}}</td>
                         <td>{{event.eventType}}</td>
-                        <td><a href="#" @click.prevent="viewToken(event.tokenUuid)">{{event.tokenName}}</a></td>
+                        <td>
+                            <a href="#" @click.prevent="viewToken(event.uuid)">
+                                {{tokenLookupTable[event.uuid].codeName}}
+                            </a>
+                        </td>
                     </tr>
                     </tbody>
                 </table>
@@ -155,7 +162,7 @@
                                                 </div>
                                                 <div class="card-footer py-1 px-1">
                                                     <span class="badge"
-                                                          :class="`badge-${colorForTokenExecutionStatus(token.uuid)}`">
+                                                          :class="`badge-${colorForTimelineEvent(tokenLookupTable[token.uuid].executionStatus)}`">
                                                         &nbsp;&nbsp;
                                                     </span>
                                                     <span>
@@ -210,11 +217,21 @@
             lookup[token.uuid] = token
           })
         })
-        this.model.timeline.forEach((token) => {
-          if (lookup.hasOwnProperty(token.uuid)) {
-            lookup[token.uuid].status = token.status
-            if (token.hasOwnProperty('startTime')) lookup[token.uuid].startTime = token.startTime
-            if (token.hasOwnProperty('completeTime')) lookup[token.uuid].completeTime = token.completeTime
+        this.model.timelineEvents.forEach((timelineEvent) => {
+          let token = lookup[timelineEvent.uuid]
+          token.executionStatus = timelineEvent.eventType
+          switch (timelineEvent.eventType) {
+            case 'cached':
+            case 'blocked':
+              break
+            case 'started':
+              token.startTime = timelineEvent.time
+              break
+            case 'ended':
+            case 'cancelled':
+            case 'failed':
+              token.completeTime = timelineEvent.time
+              break
           }
         })
         this.model.dag.forEach((layer) => {
@@ -226,44 +243,10 @@
             })
           })
         })
-        Object.values(lookup).forEach(token => {
-          if (this.model.tokenWithException === token.uuid || (this.model.tokensMissingImpl || []).includes(token.uuid)) {
-            token.executionStatus = 'failed'
-          } else if (token.hasOwnProperty('status')) {
-            token.executionStatus = token.status
-          } else {
-            token.executionStatus = 'blocked'
-          }
-        })
         return lookup
       },
       sortedTimelineEvents: function () {
-        let events = []
-        let vm = this
-        this.model.timeline.forEach((timeLineInfo) => {
-          let token = vm.tokenLookupTable[timeLineInfo.uuid]
-          switch (timeLineInfo.status) {
-            case "running":
-              events.push({tokenUuid: timeLineInfo.uuid, tokenName: token.codeName, eventType: "begin", time: timeLineInfo.startTime})
-              break
-            case "completed":
-              events.push({tokenUuid: timeLineInfo.uuid, tokenName: token.codeName, eventType: "begin", time: timeLineInfo.startTime})
-              events.push({tokenUuid: timeLineInfo.uuid, tokenName: token.codeName, eventType: "end", time: timeLineInfo.completeTime})
-              break
-            default:
-              break
-          }
-        })
-        events.sort((a, b) => {
-          if (a.time < b.time) {
-            return 1
-          } else if (a.time > b.time) {
-            return -1
-          } else {
-            return 0
-          }
-        })
-        return events
+        return this.model.timelineEvents.slice().reverse()
       },
       tokensWrappingCount: function () {
         return (this.svgWidth - this.tokenWidth) / this.tokenPaddingX + 1
@@ -289,7 +272,7 @@
         switch (token.executionStatus) {
           case 'failed':
             return this.model.tokenWithException === token.uuid ? 'exception' : 'missing implementation'
-          case 'completed':
+          case 'ended':
             return `${token.completeTime - token.startTime} ms`
           case 'running':
             return `since ${token.startTime}`
@@ -308,22 +291,23 @@
         }
         return 'default'
       },
-      colorForTokenExecutionStatus: function (tokenUuid) {
-        let token = this.tokenLookupTable[tokenUuid]
-        switch (token.executionStatus) {
-          case 'failed':
-            return 'danger'
-          case 'completed':
-            return 'success'
-          case 'running':
-            return 'warning'
-          case 'cached':
-          case 'injected':
+      colorForTimelineEvent: function (eventType) {
+        switch (eventType) {
           case 'blocked':
             return 'secondary'
+          case 'started':
+            return 'warning'
+          case 'cached':
+          case 'ended':
+            return 'success'
+          case 'cancelled':
+            return 'info'
+          case 'failed':
+            return 'danger'
         }
-        console.log(token.executionStatus)
-        return 'default'
+      },
+      timelineEventsForToken: function (tokenUuid) {
+        return this.model.timelineEvents.filter(e => e.uuid === tokenUuid)
       },
       prettyPrintTime: function (ts) {
         return new Date(ts).toISOString()
