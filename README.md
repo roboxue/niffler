@@ -23,8 +23,11 @@ libraryDependencies ++= Seq(
 It's a set of lightweight DSL that encourages developer to write application logic in [Pure functions](https://en.wikipedia.org/wiki/Pure_function) 
 and assembly these logic fragments into executable [DAGs](https://en.wikipedia.org/wiki/Directed_acyclic_graph) in runtime.
 
+**Code => Logic**
 ![img](img/niffler_syntax_illustration.jpg)
 
+**Logic => Execution**
+![gif](img/niffler_ui_live_execution.gif)
 
 ## Why use Niffler / Dataflow Programming
 By using Niffler, you can easily utilize what data flow programming provides, plus additional operation benefits --
@@ -82,6 +85,14 @@ Application monitoring and benchmarking becomes extremely easy using Niffler. Yo
 * `Niffler` is a trait that has a private collection of `DataFlowOperation`, with helper functions to add new `DataFlowOperation` into this collection 
 * `Nifller`, being a collection of `DataFlowOperation`, can be converted directly into a `Logic`. You can also combine a few Nifflers to make a unioned `Logic`
 
+##### Launching monitor UI
+- Make sure `niffler-monitor` package has been included in your project
+- Add the following line to your codebase
+```scala
+Niffler.combine(NifflerMonitor, ExecutionHistoryService).asyncRun(NifflerMonitor.nifflerMonitorStartServer)
+```
+- Open localhost:4080
+
 ##### Tutorial
 see [NifflerSyntaxDemo.scala](example/src/main/scala/com/roboxue/niffler/examples/NifflerSyntaxDemo.scala)
 
@@ -94,10 +105,6 @@ see [NifflerSyntaxDemo.scala](example/src/main/scala/com/roboxue/niffler/example
   > This might be trival again if your application is simple. But if your repo is a collection of complex datapipelines, and/or they are currently sharing status like failed/succeeded using file system, give Niffler a try. Niffler eliminates the need of a standalone scheduling system, and provides the state sharing utilities from `ExecutionCache`
 
 ##### Better monitoring
-- Using `niffler-monitoring` package, you'll have access to a powerful web-ui with one line
-```scala
-Niffler.combine(NifflerMonitor, ExecutionHistoryService).asyncRun(NifflerMonitor.nifflerMonitorStartServer)
-```
 - Out-of-box web UI will display every Niffler DAG's execution status, allowing you to visually inspect which part of your logic is throwing exceptions and how your DAG is executed in parallel.
 - Automatic performance metrics: Remeber the times you need to do timings like `println("this operation took ${endTime - startTime} millis")`? Since there is a clear logic boundry among `DataFlowOperation`, this is done automatically by Niffler now.
 -  [screenshots](#example-3)
