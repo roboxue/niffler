@@ -14,6 +14,7 @@ object NifflerMonitorDemo {
     val logic1 = Niffler.combine(NifflerMonitor, ExecutionHistoryService)
     // a logic that will throw exception in a prerequisite step
     val logic2 = logic1.diverge(Iterable(NifflerMonitor.nifflerMonitorServicePortNumber := Constant({
+      Thread.sleep(20)
       throw new Exception("hello world niffler")
     })))
 

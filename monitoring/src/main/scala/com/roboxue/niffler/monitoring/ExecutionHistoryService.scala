@@ -10,9 +10,7 @@ import io.circe.syntax._
 import io.circe.{Encoder, Json}
 import org.http4s.circe.jsonEncoder
 import org.http4s.dsl._
-import org.http4s.server.websocket.WS
 import org.http4s.twirl._
-import org.http4s.websocket.WebsocketBits.{Text, WebSocketFrame}
 import org.http4s.{HttpService, Response}
 
 import scala.concurrent.duration._
@@ -41,8 +39,6 @@ object ExecutionHistoryService extends Niffler with ServiceUtils {
         apiGetExecutionStatus(executionId)
       case GET -> Root / "api" / "status" =>
         apiGetNifflerStatus()
-      case GET -> Root / "api" / "executionStream" / IntVar(executionId) =>
-        apiGetExecutionStatusAsStream(executionId)(scheduler, strategy)
       case POST -> Root / "api" / "storageCapacity" / IntVar(capacity) if capacity > 0 =>
         apiUpdateCapacity(capacity)
     }
@@ -64,28 +60,6 @@ object ExecutionHistoryService extends Niffler with ServiceUtils {
     (liveExecutions ++ pastExecutions).find(_.executionId == executionId) match {
       case Some(execution) =>
         jsonResponse(Ok(asyncExecutionDetailsToJson(execution).spaces2))
-      case None =>
-        NotFound()
-    }
-  }
-
-  private def apiGetExecutionStatusAsStream(executionId: Int)(implicit scheduler: Scheduler,
-                                                              strategy: Strategy): Task[Response] = {
-    val (liveExecutions, pastExecutions, _) = NifflerRuntime.getHistory
-    (liveExecutions ++ pastExecutions).find(_.executionId == executionId) match {
-      case Some(execution) =>
-        val replyInitialStatus = Stream.emit(Text(asyncExecutionDetailsToJson(execution).noSpaces))
-        val toClient: Stream[Task, WebSocketFrame] = replyInitialStatus ++ awakeEvery[Task](1.seconds)
-          .map { _ =>
-            Text(asyncExecutionDetailsToJson(execution).noSpaces)
-          }
-          .takeWhile(_ => {
-            !execution.promise.isCompleted
-          })
-        val discardClientMessages: Sink[Task, WebSocketFrame] = { (clientStream) =>
-          clientStream.evalMap[Task, Task, Unit](_ => Task.delay(Unit))
-        }
-        WS(toClient, discardClientMessages)
       case None =>
         NotFound()
     }
