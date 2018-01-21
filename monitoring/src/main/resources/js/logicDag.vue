@@ -85,6 +85,22 @@
                     </p>
                 </div>
             </div>
+            <div class="card mb-1" v-if="live">
+                <div class="card-header">
+                    <h5 class="d-flex justify-content-between">
+                        <span>Ongoing evaluation</span>
+                        <span class="badge badge-primary badge-pill">{{startedTokens.length}}</span>
+                    </h5>
+                </div>
+                <div class="list-group list-group-flush">
+                    <a class="list-group-item list-group-item-warning"
+                       href="#" @click.prevent="viewToken(token.uuid)"
+                       v-for="token in startedTokens">
+                        <h5 class="my-0">{{token.codeName}}</h5>
+                        <p class="my-0">{{tokenExecutionStatusString(token.uuid)}}</p>
+                    </a>
+                </div>
+            </div>
             <div class="card">
                 <div class="card-header">Timeline</div>
                 <table class="table table-sm table-responsive">
@@ -135,6 +151,17 @@
                             </marker>
                         </defs>
                         <g class="layers">
+                            <g>
+                                <foreignObject :x="(tokenWidth - rootWidth) / 2"
+                                               :width="rootWidth"
+                                               :height="rootHeight">
+                                    <div class="card text-white bg-primary"
+                                         style="width: 100%; height: 100%; position: static;"
+                                         xmlns="http://www.w3.org/1999/xhtml">
+                                        <p class="mx-auto">Root</p>
+                                    </div>
+                                </foreignObject>
+                            </g>
                             <g v-for="(layer, layerId) in model.dag"
                                :key="layerId">
                                 <g v-for="(token) in layer.tokens"
@@ -142,20 +169,16 @@
                                    @click="viewToken(token.uuid)"
                                    :key="token.uuid">
                                     <g :transform="`translate(${getTokenX(token.uuid)},${getTokenY(token.uuid)})`">
-                                        <foreignObject :x="tokenTextPaddingX" :y="tokenTextPaddingY"
-                                                       :width="tokenWidth - 2 * tokenTextPaddingX"
-                                                       :height="tokenHeight - 2 * tokenTextPaddingY">
+                                        <foreignObject :width="tokenWidth"
+                                                       :height="tokenHeight">
                                             <div class="card text-white"
                                                  :class="[`bg-${colorForTimelineEvent(tokenLookupTable[token.uuid].executionStatus)}`]"
                                                  style="width: 100%; height: 100%; position: static;"
                                                  xmlns="http://www.w3.org/1999/xhtml">
                                                 <div class="card-header text-truncate m-0 p-1" :title="token.codeName">
-                                                    <template v-if="token === activeToken">
-                                                        <span v-if="layerId === 0"
-                                                              class="badge badge-warning">Root</span>
-                                                        <span v-else-if="token.prerequisites.length === 0"
-                                                              class="badge badge-success">Leaf</span>
-                                                    </template>
+                                                    <span class="badge badge-warning" v-if="token === activeToken">
+                                                        <i class="fa fa-eye" aria-hidden="true"></i>
+                                                    </span>
                                                     {{token.codeName}}
                                                 </div>
                                                 <div class="card-body m-0 p-1">
@@ -189,12 +212,12 @@
     props: ['model', 'live'],
     data: function () {
       return {
+        rootHeight: 30,
+        rootWidth: 100,
         tokenWidth: 300,
         tokenHeight: 120,
         tokenPaddingX: 100,
         tokenPaddingY: 40,
-        tokenTextPaddingX: 1,
-        tokenTextPaddingY: 1,
         svgWidth: 900,
         activeTokenUuid: undefined,
         svg: undefined
@@ -207,6 +230,9 @@
         } else {
           return undefined
         }
+      },
+      startedTokens: function () {
+        return Object.values(this.tokenLookupTable).filter(t => t.executionStatus === 'started')
       },
       tokenLookupTable: function () {
         let lookup = {}
@@ -272,7 +298,7 @@
         return this.tokenPaddingX * (this.tokenLookupTable[tokenUuid].index % this.tokensWrappingCount)
       },
       getTokenY: function (tokenUuid) {
-        return (this.tokenPaddingY + this.tokenHeight) * this.tokenLookupTable[tokenUuid].index
+        return (this.tokenPaddingY + this.tokenHeight) * this.tokenLookupTable[tokenUuid].index + this.rootHeight
       },
       lineBetweenToken: function (tokenUuid1, tokenUuid2) {
         let point1 = [this.getTokenX(tokenUuid1) - 30, this.getTokenY(tokenUuid1) + this.tokenHeight * 2 / 3]
@@ -289,7 +315,7 @@
           case 'started':
             return `running for ${new Date().getTime() - token.startTime} ms`
           default:
-            return token.executionStatus || "not inspected"
+            return token.executionStatus || 'not inspected'
         }
       },
       colorForTimelineEvent: function (eventType) {
@@ -332,7 +358,7 @@
     },
     watch: {
       'model.executionId': function (val, oldVal) {
-        this.activeToken = undefined
+        this.activeTokenUuid = undefined
         this.svg.updateBBox()
         this.svg.reset()
       }
