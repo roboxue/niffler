@@ -10,7 +10,7 @@ published to Maven Central and cross-built for Scala 2.11 and 2.12, so you can j
 [![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.roboxue/niffler-core_2.11/badge.svg?subject=niffler_2.11)](https://maven-badges.herokuapp.com/maven-central/com.roboxue/niffler-core_2.11)  
 [![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.roboxue/niffler-core_2.12/badge.svg?subject=niffler_2.12)](https://maven-badges.herokuapp.com/maven-central/com.roboxue/niffler-core_2.12)  
 ```sbt
-val nifflerVersion = "0.3.0" // for latest version see the badges above
+val nifflerVersion = "x.x.x" // for latest version see the badges above
 
 libraryDependencies ++= Seq(
   "com.roboxue" %% "niffler-core",
