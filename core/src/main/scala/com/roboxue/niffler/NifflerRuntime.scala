@@ -31,7 +31,7 @@ object NifflerRuntime {
 
   def terminate(shutdownAkkaSystem: Boolean = true): Unit = synchronized {
     for (execution <- liveExecutions) {
-      execution.requestCancellation()
+      execution.requestCancellation("NifflerRuntime termination")
     }
     if (shutdownAkkaSystem) {
       actorSystem.foreach(_.terminate())

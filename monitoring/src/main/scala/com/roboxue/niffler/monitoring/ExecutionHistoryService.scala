@@ -75,11 +75,13 @@ object ExecutionHistoryService extends Niffler with ServiceUtils {
     (liveExecutions ++ pastExecutions).find(_.executionId == executionId) match {
       case Some(execution) =>
         val replyInitialStatus = Stream.emit(Text(asyncExecutionDetailsToJson(execution).noSpaces))
-        val toClient: Stream[Task, WebSocketFrame] = replyInitialStatus ++ awakeEvery[Task](1.seconds).map { _ =>
-          Text(asyncExecutionDetailsToJson(execution).noSpaces)
-        }.takeWhile(_ => {
-          !execution.promise.isCompleted
-        })
+        val toClient: Stream[Task, WebSocketFrame] = replyInitialStatus ++ awakeEvery[Task](1.seconds)
+          .map { _ =>
+            Text(asyncExecutionDetailsToJson(execution).noSpaces)
+          }
+          .takeWhile(_ => {
+            !execution.promise.isCompleted
+          })
         val discardClientMessages: Sink[Task, WebSocketFrame] = { (clientStream) =>
           clientStream.evalMap[Task, Task, Unit](_ => Task.delay(Unit))
         }
@@ -186,7 +188,7 @@ object ExecutionHistoryService extends Niffler with ServiceUtils {
                 Json.obj("uuid" -> token.uuid.asJson, "status" -> "cached".asJson)
             }
         })
-        Json.obj("targetToken" -> tokenToJson(snapshot.tokenToEvaluate), "dag" -> (for (tokens <- tokensByLayer) yield {
+        val dag = (for (tokens <- tokensByLayer) yield {
           val tokensJson = tokens
             .map(t => {
               val prerequisitesUuid = snapshot.logic.getPredecessors(t).map(d => d.uuid)
@@ -198,7 +200,26 @@ object ExecutionHistoryService extends Niffler with ServiceUtils {
             })
             .asJson
           Json.obj("tokens" -> tokensJson)
-        }).asJson, "asOfTime" -> snapshot.asOfTime.asJson, "timeline" -> (ongoing ++ finished).asJson)
+        }).asJson
+        val timelineEvents = (for (event <- snapshot.timelineEvents) yield {
+          Json
+            .obj("uuid" -> event.token.uuid.asJson, "time" -> event.time.asJson)
+            .deepMerge(event match {
+              case TimelineEvent.EvaluationCancelled(_, _, reason) =>
+                Json.obj("reason" -> reason.asJson)
+              case TimelineEvent.EvaluationFailed(_, _, ex) =>
+                Json.obj("exceptionMessage" -> ex.getMessage().asJson)
+              case _ =>
+                Json.Null
+            })
+        }).asJson
+        Json.obj(
+          "targetToken" -> tokenToJson(snapshot.tokenToEvaluate),
+          "dag" -> dag,
+          "asOfTime" -> snapshot.asOfTime.asJson,
+          "timeline" -> (ongoing ++ finished).asJson,
+          "timelineEvents" -> timelineEvents
+        )
       })
     }
   }

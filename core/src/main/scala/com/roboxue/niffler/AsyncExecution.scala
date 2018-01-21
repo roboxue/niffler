@@ -6,7 +6,6 @@ import java.util.concurrent.{TimeUnit, TimeoutException}
 import akka.actor.{ActorRef, ActorSystem, PoisonPill}
 import akka.util.Timeout
 import com.roboxue.niffler.execution._
-import monix.execution.atomic.AtomicInt
 
 import scala.concurrent.duration.{Duration, FiniteDuration}
 import scala.concurrent.{Await, Promise}
@@ -19,7 +18,7 @@ import scala.util.{Failure, Success}
 object AsyncExecution {
 
   def apply[T](logic: Logic, token: Token[T], cache: ExecutionCache): AsyncExecution[T] = {
-    new AsyncExecution[T](logic, cache, token, NifflerRuntime.getActorSystem)
+    new AsyncExecution[T](logic, cache, token)
   }
 }
 
@@ -37,7 +36,7 @@ object AsyncExecution {
 case class AsyncExecution[T] private (logic: Logic,
                                       initialCache: ExecutionCache,
                                       forToken: Token[T],
-                                      system: ActorSystem,
+                                      system: ActorSystem = NifflerRuntime.getActorSystem,
                                       clock: Clock = Clock.systemUTC(),
                                       executionId: Int = NifflerRuntime.getNewExecutionId) {
   val promise: Promise[ExecutionResult[T]] = Promise()
@@ -58,7 +57,7 @@ case class AsyncExecution[T] private (logic: Logic,
       Await.result(promise.future, timeout)
     } catch {
       case _: TimeoutException if timeout.isFinite() =>
-        executionActor ! ExecutionActor.Cancel
+        requestCancellation("timeout exception")
         val ex = NifflerTimeoutException(getExecutionSnapshot, timeout.asInstanceOf[FiniteDuration])
         promise.tryFailure(ex)
         throw ex
@@ -69,8 +68,8 @@ case class AsyncExecution[T] private (logic: Logic,
     }
   }
 
-  def requestCancellation(): Unit = {
-    executionActor ! ExecutionActor.Cancel
+  def requestCancellation(reason: String): Unit = {
+    executionActor ! ExecutionActor.Cancel(reason)
   }
 
   def getExecutionSnapshot: ExecutionSnapshot = {
@@ -109,6 +108,7 @@ case class AsyncExecution[T] private (logic: Logic,
             Map.empty,
             Some(clock.millis()),
             ExecutionStatus.Failed,
+            Seq.empty,
             clock.millis()
           ),
           missingImpl

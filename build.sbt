@@ -76,7 +76,7 @@ lazy val commonSettings = Seq(
 lazy val noPublishSettings = Seq(skip in publish := true)
 lazy val publishSettings = Seq(
   releasePublishArtifactsAction := PgpKeys.publishSigned.value,
-  releaseCrossBuild := true
+  releaseCrossBuild := true,
 
   homepage := Some(url("https://github.com/roboxue/niffler")),
   licenses := Seq("Apache License, Version 2.0" -> url("https://www.apache.org/licenses/LICENSE-2.0.txt")),

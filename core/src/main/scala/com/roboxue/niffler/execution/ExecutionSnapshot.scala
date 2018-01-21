@@ -12,6 +12,7 @@ import scala.language.existentials
   * @param ongoing tokens still being evaluated
   * @param invocationTime evaluation started
   * @param executionStatus the [[ExecutionStatus]]
+  * @param timelineEvents a Seq of [[TimelineEvent]] in the order of generation time
   * @param asOfTime snapshot generation time
   * @author rxue
   * @since 12/19/17.
@@ -22,6 +23,7 @@ case class ExecutionSnapshot(logic: Logic,
                              ongoing: Map[Token[_], Long],
                              invocationTime: Option[Long],
                              executionStatus: ExecutionStatus,
+                             timelineEvents: Seq[TimelineEvent],
                              asOfTime: Long) {
 
   /**
