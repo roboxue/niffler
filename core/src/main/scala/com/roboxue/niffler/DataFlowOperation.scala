@@ -3,9 +3,7 @@ package com.roboxue.niffler
 /**
   * [[DataFlowOperation]] is a typed binding of [[Token]] and [[Formula]]
   * Don't create this class directly.
-  * Use helper methods in [[Token]] like [[Token.assign]],
-  * [[Token.amendWith]], [[Token.amendWithToken]], [[Token.dependsOn]], [[Token.dependsOnToken]]
-  * or in [[Niffler]] like [[Niffler.constant]] or [[Niffler.requires]]
+  * Use helper methods in [[Token]] like [[Token.:=]], [[Token.+=]]
   *
   * @author rxue
   * @since 12/15/17.

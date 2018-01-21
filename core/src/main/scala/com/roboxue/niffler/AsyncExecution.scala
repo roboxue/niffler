@@ -48,7 +48,7 @@ case class AsyncExecution[T] private (logic: Logic,
   /**
     * Wrapper around Await(promise.future, timeout), yield a more friendly [[NifflerTimeoutException]] on timeout
     *
-    * @param timeout either [[Duration.Inf]] or a [[FiniteDuration]]
+    * @param timeout either [[scala.concurrent.duration.Duration.Inf]] or a [[FiniteDuration]]
     * @return execution result if successfully executed
     * @throws NifflerTimeoutException    if timeout
     * @throws NifflerEvaluationException if runtime exception encountered

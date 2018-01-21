@@ -9,7 +9,7 @@ import com.roboxue.niffler.execution.Append
   *
   * @param token this [[Token]] wil be represented by the value calculated using [[formula]] and [[howToAmend]] in runtime
   * @param formula the [[Formula]] used to calculate the amendment to [[token]]'s existing value
-  * @param howToAmend the function used to append the existing value typed [[T]] with [[formula]]'s result typed [[R]]
+  * @param howToAmend the function used to append the existing value typed T with [[formula]]'s result typed R
   * @author rxue
   * @since 12/15/17.
   */

@@ -14,7 +14,7 @@ import scala.reflect.runtime.universe.TypeTag
 class Token[T: TypeTag](val name: String, val uuid: String, val codeName: String) {
 
   /**
-    * Used by external to reference [[T]]
+    * Used by external to reference the type parameter
     */
   type T0 = T
 
@@ -37,7 +37,7 @@ class Token[T: TypeTag](val name: String, val uuid: String, val codeName: String
 
   /**
     * Create a [[Formula]] that declare dependency on this token with an extra transformation
-    * @param transform the function used to yield [[R]] using the runtime value of this token with type [[T]]
+    * @param transform the function used to yield R using the runtime value of this token with type [[T]]
     * @return a [[Formula]]
     */
   def asFormula[R](transform: T => R): Formula[R] = Requires(this)(transform)
