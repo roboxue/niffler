@@ -3,6 +3,7 @@ package com.roboxue.niffler
 import com.roboxue.niffler.execution.AsyncExecution
 import org.jgrapht.Graphs
 import org.jgrapht.graph.{DefaultEdge, DirectedAcyclicGraph}
+import org.jgrapht.traverse.TopologicalOrderIterator
 
 import scala.collection.JavaConverters._
 
@@ -29,4 +30,16 @@ class Logic(flows: Iterable[DataFlow[_]]) {
     AsyncExecution(diverge(extraFlow), state, token, AsyncExecution.executionId.incrementAndGet())
   }
 
+  def printFlowChart(logger: String => Unit): Unit = {
+    val it: TopologicalOrderIterator[Token[_], DefaultEdge] = new TopologicalOrderIterator(dag)
+    logger("graph TD;")
+    for (t <- dag.vertexSet().asScala) {
+      logger(s"""${t.uuid.replaceAll("-", "")}["${t.name}:${t.typeDescription}"]""")
+    }
+    for (t <- it.asScala) {
+      for (d <- Graphs.predecessorListOf(dag, t).asScala) {
+        logger(s"${t.uuid.replaceAll("-", "")} --> ${d.uuid.replaceAll("-", "")};")
+      }
+    }
+  }
 }
