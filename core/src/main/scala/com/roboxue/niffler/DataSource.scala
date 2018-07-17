@@ -7,7 +7,7 @@ import scala.concurrent.Future
   * @since 7/15/18
   */
 trait DataSource[T] {
-  val dependsOn: Seq[TokenMeta]
+  val dependsOn: Seq[Token[_]]
 
   def ~>(outlet: Token[T]): DataFlow[T] = writesTo(outlet)
 
