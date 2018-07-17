@@ -79,20 +79,20 @@ class EvaluationCommander[T](execution: AsyncExecution[T]) extends Actor with Ac
   }
 
   def enterSuccessProtocol(result: T): Unit = {
-    execution.resultPromise.success(ExecutionResult(result, state, ExecutionLog(logs), execution.executionId))
+    execution.resultPromise.success(ExecutionResult(result, state, ExecutionLog(execution.executionId, logs), execution.executionId))
     logIt(LogEnded())
     self ! PoisonPill
   }
 
-  def revisit(token: Token[_]): Unit = {
+  def revisit(token: Token[_], blockerRemoved: Token[_]): Unit = {
     val dep = Graphs.predecessorListOf(dag, token).asScala.toSet
+    val met = dep.intersect(state.keySet)
     val unmet = dep.diff(state.keySet)
+    logIt(TokenRevisited(token, blockerRemoved, unmet, met))
     if (unmet.isEmpty) {
       logIt(TokenStartedEvaluation(token))
       evaluating += token
       trigger(token)
-    } else {
-      logIt(TokenBacklogged(token, unmet))
     }
   }
 
@@ -126,7 +126,7 @@ class EvaluationCommander[T](execution: AsyncExecution[T]) extends Actor with Ac
       } else {
         for (blockedTokens <- blockers.remove(token);
              blocked <- blockedTokens) {
-          revisit(blocked)
+          revisit(blocked, token)
         }
       }
     case EvaluationFailure(token, ex) =>
@@ -138,26 +138,6 @@ class EvaluationCommander[T](execution: AsyncExecution[T]) extends Actor with Ac
   }
 
   def logIt(entry: ExecutionLogEntry): Unit = {
-    entry match {
-      case l: LogStarted =>
-        log.info(s"${l.nanoTime} LogStarted")
-      case l: TokenAnalyzed =>
-        log.info(s"${l.nanoTime} TokenAnalyzed ${l.token.codeName}, unmet: ${l.unmet.size}, met: ${l.met.size}")
-      case l: TokenBacklogged =>
-        log.info(s"${l.nanoTime} TokenBacklogged ${l.token.codeName}, unmet: ${l.unmet.size}")
-      case l: TokenStartedEvaluation =>
-        log.info(s"${l.nanoTime} TokenStartedEvaluation ${l.token.codeName}")
-      case l: TokenEndedEvaluation =>
-        log.info(s"${l.nanoTime} TokenEndedEvaluation ${l.token.codeName}")
-      case l: TokenFailedEvaluation =>
-        log.info(s"${l.nanoTime} TokenFailedEvaluation ${l.token.codeName}")
-      case l: TokenCancelledEvaluation =>
-        log.info(
-          s"${l.nanoTime} TokenCancelledEvaluation ${l.token.codeName} because of ${l.canceledBecause.map(_.codeName).getOrElse("external reason")}"
-        )
-      case l: LogEnded =>
-        log.info(s"${l.nanoTime} LogEnded")
-    }
     logs += entry
   }
 }

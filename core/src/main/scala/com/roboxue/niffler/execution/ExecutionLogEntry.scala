@@ -15,6 +15,7 @@ case class TokenAnalyzed(token: Token[_], unmet: Set[Token[_]], met: Set[Token[_
 case class TokenBacklogged(token: Token[_], unmet: Set[Token[_]]) extends ExecutionLogEntry
 case class TokenStartedEvaluation(token: Token[_]) extends ExecutionLogEntry
 case class TokenEndedEvaluation(token: Token[_]) extends ExecutionLogEntry
+case class TokenRevisited(token: Token[_], blockerRemoved: Token[_], unmet: Set[Token[_]], met: Set[Token[_]]) extends ExecutionLogEntry
 case class TokenFailedEvaluation(token: Token[_], ex: Throwable) extends ExecutionLogEntry
 case class TokenCancelledEvaluation(token: Token[_], canceledBecause: Option[Token[_]]) extends ExecutionLogEntry
 case class LogEnded(timestamp: Long = System.currentTimeMillis()) extends ExecutionLogEntry
