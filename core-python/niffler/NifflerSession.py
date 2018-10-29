@@ -1,6 +1,4 @@
 class NifflerSession:
-    __storage__ = None  # type: Dict[Token, Any]
-
     def __init__(self):
         self.__storage__ = {}
 
