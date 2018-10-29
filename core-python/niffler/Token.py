@@ -12,25 +12,15 @@ class Token:
         self.code_name = code_name
         self.type_name = type_name
 
-    def depends_on(self, tokens, impl):
-        """
-        :type tokens: Sequence[[Token]]
-        :type impl: Callable[[t.type_name for t in tokens], self.type_name]
-        :return:
-        """
-        def _impl_(session):
-            return impl(*[session.get(t) for t in tokens])
-        return Implementation(self, tokens, _impl_)
-
 
 class Implementation:
-    impl = None  # type: function
-    fulfill = None  # type: Token
     dependencies = None  # type: list
+    func = None  # type: function
 
-    def __init__(self, fulfill, dependencies, impl):
+    def __init__(self, dependencies, func):
         self.dependencies = dependencies
-        self.fulfill = fulfill
-        self.impl = impl
 
+        def impl(session):
+            return func(*[session.get(t) for t in dependencies])
 
+        self.func = impl
