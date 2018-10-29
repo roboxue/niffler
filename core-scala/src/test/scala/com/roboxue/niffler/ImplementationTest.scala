@@ -11,7 +11,7 @@ class ImplementationTest extends FlatSpec with Matchers {
       Range(0, v1).map(_ => v2)
     }
 
-    val session = new NifflerSession()
+    val session = NifflerSession(1L, 42L)
     session.set(t1, 5)
     session.set(t2, "a")
     impl.implementation(session) shouldBe Seq("a", "a", "a", "a", "a")
