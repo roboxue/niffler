@@ -8,7 +8,9 @@ scalaVersion := "2.12.7"
 
 lazy val `core-scala` = project.in(file("core-scala")).settings(
   libraryDependencies ++= Seq(
-    "org.scala-lang" % "scala-reflect" % scalaVersion.value
+    "org.scala-lang" % "scala-reflect" % scalaVersion.value,
+    "org.scalactic" %% "scalactic" % "3.0.5",
+    "org.scalatest" %% "scalatest" % "3.0.5" % "test"
   )
 )
 lazy val gen = project.in(file("gen")).settings(
