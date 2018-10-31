@@ -21,6 +21,10 @@ object NifflerServer {
         get {
           complete(HttpEntity(ContentTypes.`text/html(UTF-8)`, "<h1>Say hello to akka-http</h1>"))
         }
+      } ~ pathPrefix("sessions") {
+        path(IntNumber) { sessionId =>
+          complete(if (sessionId % 2 == 0) "even ball" else "odd ball")
+        }
       }
 
     val bindingFuture = Http().bindAndHandle(route, "localhost", 8080)
