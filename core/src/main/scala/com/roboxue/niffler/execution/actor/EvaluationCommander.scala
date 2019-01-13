@@ -1,20 +1,20 @@
 package com.roboxue.niffler.execution.actor
 
-import akka.actor.{Actor, ActorLogging, ActorRef, PoisonPill, Props}
-import com.roboxue.niffler.{MutableExecutionState, Token}
+import akka.actor.{Actor, ActorLogging, PoisonPill}
 import com.roboxue.niffler.execution._
 import com.roboxue.niffler.execution.actor.EvaluationCommander.{
   EvaluationCancelled,
   EvaluationFailure,
   EvaluationSuccess
 }
+import com.roboxue.niffler.{MutableExecutionState, Token}
 import org.jgrapht.Graphs
 import org.jgrapht.graph.{DefaultEdge, DirectedAcyclicGraph}
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
 
 /**
@@ -61,25 +61,37 @@ class EvaluationCommander[T](execution: AsyncExecution[T]) extends Actor with Ac
         logIt(TokenBacklogged(token, unmet))
       }
     } else {
-      val ex = NifflerNoDataFlowDefinedException
+      val ex = NifflerNoDataFlowDefinedException(token)
       logIt(TokenFailedEvaluation(token, ex))
-      enterFailureProtocol(Some(token), ex)
+      enterFailureProtocol(token, ex)
     }
     unseen.enqueue(unseenCache.toSet.diff(seen).toSeq: _*)
   }
 
-  def enterFailureProtocol(cause: Option[Token[_]], ex: Throwable): Unit = {
+  def enterFailureProtocol(cause: Token[_], ex: Throwable): Unit = {
     failed = true
     for (token <- evaluating) {
-      logIt(TokenCancelledEvaluation(token, cause))
+      logIt(TokenCancelledEvaluation(token, Some(cause)))
     }
     logIt(LogEnded())
     self ! PoisonPill
-    execution.resultPromise.failure(ex)
+    execution.failure(NifflerDataFlowExecutionException(cause, ex))
+  }
+
+  def enterCancellationProtocol(): Unit = {
+    failed = true
+    for (token <- evaluating) {
+      logIt(TokenCancelledEvaluation(token, None))
+    }
+    logIt(LogEnded())
+    self ! PoisonPill
+    execution.failure(NifflerCancelledException)
   }
 
   def enterSuccessProtocol(result: T): Unit = {
-    execution.resultPromise.success(ExecutionResult(result, state, ExecutionLog(execution.executionId, logs), execution.executionId))
+    execution.success(
+      ExecutionResult(result, state.seal, ExecutionLog(execution.executionId, logs), execution.executionId)
+    )
     logIt(LogEnded())
     self ! PoisonPill
   }
@@ -98,21 +110,35 @@ class EvaluationCommander[T](execution: AsyncExecution[T]) extends Actor with Ac
 
   def trigger(token: Token[_]): Unit = {
     execution.logic.flowReference.get(token) match {
-      case Some(flow) =>
-        flow
+      case Some(flow) if flow.length == 1 =>
+        flow.head
           .evaluate(state)(ExecutionContext.global)
           .onComplete({
-            case _ if failed =>
-            // do nothing
+            case Success(result) =>
+              self ! EvaluationSuccess(token, result)
+            case Failure(ex) =>
+              self ! EvaluationFailure(token, ex)
+          })(context.dispatcher)
+      case Some(flows) =>
+        flows
+          .drop(1)
+          .foldLeft[Future[_]](flows.head.evaluate(state)(ExecutionContext.global))({ (f, flow) =>
+            implicit val ec = ExecutionContext.global
+            f.flatMap(r => {
+              state.put(token.asInstanceOf[Token[token.T0]], r.asInstanceOf[token.T0])
+              flow.evaluate(state)
+            })
+          })
+          .onComplete({
             case Success(result) =>
               self ! EvaluationSuccess(token, result)
             case Failure(ex) =>
               self ! EvaluationFailure(token, ex)
           })(context.dispatcher)
       case None =>
-        val ex = NifflerNoDataFlowDefinedException
+        val ex = NifflerNoDataFlowDefinedException(token)
         logIt(TokenFailedEvaluation(token, ex))
-        enterFailureProtocol(Some(token), ex)
+        enterFailureProtocol(token, ex)
     }
   }
 
@@ -120,7 +146,7 @@ class EvaluationCommander[T](execution: AsyncExecution[T]) extends Actor with Ac
     case EvaluationSuccess(token, result) =>
       logIt(TokenEndedEvaluation(token))
       evaluating -= token
-      state(token.asInstanceOf[Token[token.T0]]) = result.asInstanceOf[token.T0]
+      state.put(token.asInstanceOf[Token[token.T0]], result.asInstanceOf[token.T0])
       if (token == execution.token) {
         enterSuccessProtocol(result.asInstanceOf[T])
       } else {
@@ -132,9 +158,9 @@ class EvaluationCommander[T](execution: AsyncExecution[T]) extends Actor with Ac
     case EvaluationFailure(token, ex) =>
       logIt(TokenFailedEvaluation(token, ex))
       evaluating -= token
-      enterFailureProtocol(Some(token), ex)
+      enterFailureProtocol(token, ex)
     case EvaluationCancelled =>
-      enterFailureProtocol(None, NifflerCancelledException)
+      enterCancellationProtocol()
   }
 
   def logIt(entry: ExecutionLogEntry): Unit = {

@@ -43,8 +43,7 @@ lazy val monitoring = nifflerProject("monitoring", enablePublish = true)
   .dependsOn(core)
   .enablePlugins(SbtTwirl)
   .settings(
-    TwirlKeys.templateImports ++= Seq(
-      "com.roboxue.niffler.monitoring._"),
+    TwirlKeys.templateImports ++= Seq("com.roboxue.niffler.monitoring._"),
     libraryDependencies ++= Seq(
       "io.circe" %% "circe-generic" % circe,
       "io.circe" %% "circe-literal" % circe,
@@ -55,7 +54,17 @@ lazy val monitoring = nifflerProject("monitoring", enablePublish = true)
     )
   )
 
-lazy val example = nifflerProject("example", enablePublish = false).dependsOn(core, monitoring)
+lazy val example = nifflerProject("example", enablePublish = false)
+  .dependsOn(core, monitoring)
+  .settings(
+    libraryDependencies ++= Seq(
+      "org.json4s" %% "json4s-core" % json4s,
+      "org.json4s" %% "json4s-jackson" % json4s,
+      "commons-io" % "commons-io" % "2.6",
+      "org.apache.commons" % "commons-compress" % "1.18",
+      "com.lihaoyi" %% "requests" % "0.1.4",
+    )
+  )
 
 resolvers ++= Seq(Resolver.sonatypeRepo("releases"), Resolver.sonatypeRepo("snapshots"))
 
@@ -76,13 +85,13 @@ lazy val commonSettings = Seq(
 lazy val noPublishSettings = Seq(skip in publish := true)
 lazy val publishSettings = Seq(
   releasePublishArtifactsAction := PgpKeys.publishSigned.value,
-
   homepage := Some(url("https://github.com/roboxue/niffler")),
   licenses := Seq("Apache License, Version 2.0" -> url("https://www.apache.org/licenses/LICENSE-2.0.txt")),
   startYear := Some(2017),
   developers := List(Developer("roboxue", "Robert Xue", "roboxue@roboxue.com", url("http://www.roboxue.com"))),
-
-  pomIncludeRepository := { _ => false },
+  pomIncludeRepository := { _ =>
+    false
+  },
   publishMavenStyle := true,
   publishArtifact in Test := false,
   scmInfo := {

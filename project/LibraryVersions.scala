@@ -7,4 +7,5 @@ object LibraryVersions {
   val akka = "2.5.2"
   val http4s = "0.17.6"
   val circe = "0.8.0"
+  val json4s = "3.6.1"
 }

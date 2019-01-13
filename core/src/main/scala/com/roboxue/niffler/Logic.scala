@@ -6,6 +6,8 @@ import org.jgrapht.graph.{DefaultEdge, DirectedAcyclicGraph}
 import org.jgrapht.traverse.TopologicalOrderIterator
 
 import scala.collection.JavaConverters._
+import scala.collection.mutable
+import scala.collection.mutable.ListBuffer
 
 /**
   * @author robert.xue
@@ -14,20 +16,38 @@ import scala.collection.JavaConverters._
 class Logic(flows: Iterable[DataFlow[_]]) {
   val dag: DirectedAcyclicGraph[Token[_], DefaultEdge] = {
     val g = new DirectedAcyclicGraph[Token[_], DefaultEdge](classOf[DefaultEdge])
-    for (flow <- flows) {
-      Graphs.addIncomingEdges(g, flow.outlet, flow.dependsOn.asJava)
+    for ((token, dataFlows) <- flowReference; flow <- dataFlows) {
+      Graphs.addIncomingEdges(g, token, flow.dependsOn.asJava)
     }
     g
   }
 
-  lazy val flowReference: Map[Token[_], DataFlow[_]] = flows.map(f => f.outlet -> f).toMap
+  lazy val flowReference: Map[Token[_], Seq[DataFlow[_]]] = {
+    val consolidation = mutable.Map[Token[_], ListBuffer[DataFlow[_]]]()
+    for (flow <- flows) {
+      if (flow.cleanUpPreviousDataFlow && consolidation.contains(flow.outlet)) {
+        consolidation(flow.outlet).clear()
+      }
+      if (!consolidation.contains(flow.outlet)) {
+        consolidation(flow.outlet) = ListBuffer.empty
+      }
+      consolidation(flow.outlet) += flow
+    }
+    consolidation.toMap
+  }
 
   def diverge(extraFlow: Iterable[DataFlow[_]]): Logic = new Logic(flows ++ extraFlow)
 
-  def asyncRun[T](token: Token[T],
-                  extraFlow: Iterable[DataFlow[_]] = Iterable.empty,
-                  state: ExecutionState = ExecutionState.empty): AsyncExecution[T] = {
-    AsyncExecution(diverge(extraFlow), state, token, AsyncExecution.executionId.incrementAndGet())
+  def asyncRun[T](token: Token[T], extraFlow: Iterable[DataFlow[_]] = Iterable.empty)(
+    implicit sc: ExecutionStateTracker = new ExecutionStateTracker
+  ): AsyncExecution[T] = {
+    AsyncExecution(
+      diverge(extraFlow),
+      sc.getExecutionState,
+      token,
+      AsyncExecution.executionId.incrementAndGet(),
+      Some(sc)
+    )
   }
 
   def printFlowChart(logger: String => Unit): Unit = {

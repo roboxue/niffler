@@ -16,28 +16,43 @@ trait ExecutionStateLike {
   def contains(token: Token[_]): Boolean = storage.contains(token)
 
   def keySet: collection.Set[Token[_]] = storage.keySet
+
+  def mutableCopy: MutableExecutionState = new MutableExecutionState(storage)
+
+  def seal: ExecutionState = new ExecutionState(storage)
 }
 
 class MutableExecutionState private[niffler] (initialState: Map[Token[_], Any]) extends ExecutionStateLike {
-  val _storage: mutable.Map[Token[_], Any] = mutable.Map(initialState.toSeq: _*)
+  private[niffler] val _storage: mutable.Map[Token[_], Any] = mutable.Map(initialState.toSeq: _*)
 
   override protected def storage: Map[Token[_], Any] = _storage
 
-  def update[T](token: Token[T], value: T): Unit = {
+  def put[T](token: Token[T], value: T): MutableExecutionState = {
     _storage(token) = value
+    this
   }
+
 }
 
-class ExecutionState private (initialState: Map[Token[_], Any]) extends ExecutionStateLike {
+class ExecutionState private[niffler] (initialState: Map[Token[_], Any]) extends ExecutionStateLike {
   override protected def storage: Map[Token[_], Any] = initialState
 
   def set[T](token: Token[T], value: T): ExecutionState = {
     new ExecutionState(initialState.updated(token, value))
   }
 
-  def mutableCopy: MutableExecutionState = new MutableExecutionState(storage)
 }
 
 object ExecutionState {
   def empty: ExecutionState = new ExecutionState(Map.empty)
+
+  def emptyMutable: MutableExecutionState = new MutableExecutionState(Map.empty)
+}
+
+class ExecutionStateTracker(initialState: ExecutionStateLike = ExecutionState.empty) {
+  private var _executionState: ExecutionStateLike = initialState
+  def getExecutionState: ExecutionStateLike = _executionState
+  def setExecutionState(state: ExecutionStateLike): Unit = {
+    _executionState = state
+  }
 }

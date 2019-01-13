@@ -19,15 +19,17 @@ object Example {
   val palindrome: Token[String] = Token("palindrome")
 
   def main(args: Array[String]): Unit = {
-    val logic: Logic = new Logic(Seq(
-      palindrome.dependsOn(palindromeLeft, joinedString) := (_ + _.reverse),
-      palindromeLeft.dependsOn(joinedString, separator) := (_ + _),
-      joinedString.dependsOn(stringArray, separator) := {
-        (t5, t6) =>
+    val logic: Logic = new Logic(
+      Seq(
+        palindrome.dependsOn(palindromeLeft, joinedString) := (_ + _.reverse),
+        palindromeLeft.dependsOn(joinedString, separator) := (_ + _),
+        joinedString.dependsOn(stringArray, separator) := { (t5, t6) =>
           t5.mkString(t6)
-      },
-      separator.asFormula := ",",
-      stringArray.asFormula := Seq("foo", "bar", "fab", "tas")))
+        },
+        separator := ",",
+        stringArray := Seq("foo", "bar", "fab", "tas")
+      )
+    )
     // logic self documents
     logic.printFlowChart(println)
     println("========================")
@@ -35,8 +37,7 @@ object Example {
     val execution1: AsyncExecution[String] = logic.asyncRun(palindrome)
 
     val system: ActorSystem = ActorSystem.create("example")
-    execution1.withAkka(system)
-    val r = Await.result(execution1.resultPromise.future, Duration.Inf)
+    val r = execution1.withAkka(system).await(Duration.Inf)
     println(r.value)
     // auto collect metrics
     println("========================")
@@ -56,9 +57,9 @@ object SyntaxExample {
 
   // ExecutionState as the runtime state management solution
   val state = new MutableExecutionState(Map.empty)
-  state(t1) = 1
+  state.put(t1, 1)
   val t1Result: Int = state(t1)
-  state(t2) = "ssss"
+  state.put(t2, "ssss")
   val t2Result: String = state(t2)
 
   // DataFlow as stateless computations
@@ -69,8 +70,8 @@ object SyntaxExample {
   val c2: DataFlow[Boolean] = Requires(t1, t2) outputTo t3 implBy { (t1, t2) =>
     t1 == t2.length
   }
-  val d1: DataFlow[Boolean] = t3.asFormula := true
-  val d2: DataFlow[Boolean] = t3.asFormula implBy true
+  val d1: DataFlow[Boolean] = t3 := true
+  val d2: DataFlow[Boolean] = t3 implBy true
 
   val g1: DataFlow[Boolean] = Requires(t1, t2) implBy { (t1, t2) =>
     t1 == t2.length
@@ -88,14 +89,16 @@ object SyntaxExample {
   import com.roboxue.niffler.Example._
 
   // logic as a collection of data flow
-  val logic: Logic = new Logic(Seq(
-    palindrome.dependsOn(palindromeLeft, joinedString) := (_ + _.reverse),
-    palindromeLeft.dependsOn(joinedString, separator) := (_ + _),
-    joinedString.dependsOn(stringArray, separator) := {
-      (t5, t6) =>
+  val logic: Logic = new Logic(
+    Seq(
+      palindrome.dependsOn(palindromeLeft, joinedString) := (_ + _.reverse),
+      palindromeLeft.dependsOn(joinedString, separator) := (_ + _),
+      joinedString.dependsOn(stringArray, separator) := { (t5, t6) =>
         t5.mkString(t6)
-    },
-    separator.asFormula := ",",
-    stringArray.asFormula := Seq("foo", "bar", "fab", "tas")))
+      },
+      separator := ",",
+      stringArray := Seq("foo", "bar", "fab", "tas")
+    )
+  )
 
 }
