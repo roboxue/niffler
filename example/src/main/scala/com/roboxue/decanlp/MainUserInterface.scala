@@ -26,9 +26,9 @@ object MainUserInterface {
     )
 
     val downloader: Niffler = new DataDownload(decaTasks)
-    val dataLoader = new DataLoader(decaTasks)
-    val logic = downloader ++ dataLoader
-    logic
+    val dataLoader: Niffler = new DataLoader(decaTasks)
+    val finalProduct = downloader ++ dataLoader
+    finalProduct
       .asyncRun(
         DataLoader.prepareAllData,
         Seq(

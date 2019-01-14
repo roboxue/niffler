@@ -88,14 +88,14 @@ object DataDownload {
   val downloadedData: AccumulatorToken[Seq[File]] = Token.accumulator("all downloaded datasets")
   val dataPath: Token[Path] = Token("the working folder for dataset download")
 
-  trait DataDownloader {
+  trait DataDownloader extends Niffler {
     private val clazzName = getClass.getSimpleName.stripSuffix("$")
     val dataPath: Token[Path] = Token(s"the working folder for $clazzName dataset", s"dataPath$clazzName")
     val downloadData: Token[Seq[File]] = Token(s"perform download for $clazzName")
 
     def extraDataFlows: Seq[DataFlow[_]]
 
-    final def dataFlows: Seq[DataFlow[_]] = extraDataFlows
+    override final def dataFlows: Seq[DataFlow[_]] = extraDataFlows
   }
 
   object QuestionAnswering extends DataDownloader {

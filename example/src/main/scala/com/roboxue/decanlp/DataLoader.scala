@@ -1,13 +1,15 @@
 package com.roboxue.decanlp
 import java.io.File
 import java.nio.file.Path
-import java.util.Objects
 import java.util.concurrent.ConcurrentHashMap
 
 import com.roboxue.decanlp.DataLoader._
 import com.roboxue.niffler._
+import org.json4s.{DefaultFormats, _}
+import org.json4s.jackson.JsonMethods._
 
 import scala.collection.JavaConverters._
+import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
 import scala.io.Source
 
@@ -29,7 +31,12 @@ class DataLoader(decaTasks: Seq[DecaTask]) extends Niffler {
           CommonsenseReasoning.workingDirectory.dependsOn(workingDirectory).implBy(_.resolve("commonsense_reasoning")),
           prepareAllData ++= CommonsenseReasoning.prepareAllData
         )
-      case DecaTask.GoalOrientedDialogue                                               =>
+      case DecaTask.GoalOrientedDialogue =>
+        _dataFlows ++= GoalOrientedDialogue.dataFlows
+        _dataFlows ++= Seq(
+          GoalOrientedDialogue.workingDirectory.dependsOn(workingDirectory).implBy(_.resolve("goal_oriented_dialogue")),
+          prepareAllData ++= GoalOrientedDialogue.prepareAllData
+        )
       case DecaTask.NamedEntityRecognition                                             =>
       case DecaTask.NaturalLanguageInference                                           =>
       case DecaTask.QuestionAnswering                                                  =>
@@ -71,28 +78,29 @@ object DataLoader {
     Token.accumulator("ready to use dataset for this deep learning task")
   val workingDirectory: Token[Path] = Token("the working directory for data loading and splitting")
 
-  def wordCounts(decaTokenizedDataset: DecaTokenizedDataset): WordCount = {
-    decaTokenizedDataset.records.par
-      .foldLeft(new ConcurrentHashMap[String, Long]()) { (cache, record) =>
-        for (w <- record.question) {
-          cache.compute(w, (_, v) => {
-            if (Objects.isNull(v)) {
-              1
-            } else {
-              v + 1
-            }
-          })
-        }
-        cache
-      }
-  }
+//  def wordCounts(decaTokenizedDataset: DecaTokenizedDataset): WordCount = {
+//    decaTokenizedDataset.records.par
+//      .foldLeft(new ConcurrentHashMap[String, Long]()) { (cache, record) =>
+//        for (w <- record.question) {
+//          cache.compute(w, (_, v) => {
+//            if (Objects.isNull(v)) {
+//              1
+//            } else {
+//              v + 1
+//            }
+//          })
+//        }
+//        cache
+//      }
+//  }
 
-  trait BaseDataLoader {
-    val workingDirectory: Token[Path] = Token("the working directory for data loading and splitting")
-    val prepareAllData: Token[Seq[File]] = Token("ready to use dataset for this deep learning task")
+  trait BaseDataLoader extends Niffler {
+    private val clazzName = getClass.getSimpleName.stripSuffix("$")
+    val workingDirectory: Token[Path] = Token(s"the working directory for data loading and splitting for $clazzName")
+    val prepareAllData: Token[Seq[File]] = Token(s"ready to use dataset for $clazzName")
     def extraDataFlows: Seq[DataFlow[_]]
 
-    final def dataFlows: Seq[DataFlow[_]] = extraDataFlows
+    override final def dataFlows: Seq[DataFlow[_]] = extraDataFlows
   }
 
   object CommonsenseReasoning extends BaseDataLoader {
@@ -166,5 +174,127 @@ object DataLoader {
         }),
       prepareAllData.dependsOnAllOf(trainJsonl, testJsonl, validationJsonl).implBy(files => files)
     )
+  }
+
+  object GoalOrientedDialogue extends BaseDataLoader {
+    val trainJsonl: Token[File] = Token("training data")
+    val validationJsonl: Token[File] = Token("validation data")
+    val testJsonl: Token[File] = Token("test data")
+
+    private[decanlp] def parseWozDialogues(dialogues: JArray): Seq[QuestionAnswerContext] = {
+      implicit val formats: Formats = DefaultFormats
+      val examples = ListBuffer.empty[QuestionAnswerContext]
+      dialogues.arr.foreach(d => {
+        var previousInformation = Map.empty[String, String]
+        var previousRequest = List.empty[String]
+        val turns = (d \ "dialogue").extract[JArray]
+        turns.arr.foreach(t => {
+          val question = "What is the change in state?"
+          val actions = (t \ "system_acts")
+            .extract[JArray]
+            .arr
+            .map({
+              case JArray(act) =>
+                act.map(_.extract[String]).mkString(": ")
+              case JString(act) =>
+                act
+            })
+            .mkString(", ")
+          val context = if (actions.isEmpty) {
+            (t \ "transcript").extract[String]
+          } else {
+            s"$actions -- ${(t \ "transcript").extract[String]}"
+          }
+          val deltaInformation = mutable.Map.empty[String, String]
+          val deltaRequest = ListBuffer.empty[String]
+          val currentInformation = mutable.Map.empty[String, String]
+          val currentRequest = ListBuffer.empty[String]
+          for (JObject(item) <- t \ "belief_state";
+               JField("slots", JArray(slots)) <- item;
+               JField("act", JString(act)) <- item;
+               slot <- slots) {
+            act match {
+              case "inform" =>
+                val List(informationKey, informationValue) = slot.extract[List[String]]
+                currentInformation(informationKey) = informationValue
+                if (previousInformation.get(informationKey).contains(informationValue)) {
+                  // redudant information
+                } else {
+                  deltaInformation(informationKey) = informationValue
+                }
+              case "request" =>
+                val List(_, requestValue) = slot.extract[List[String]]
+                deltaRequest += requestValue
+                currentRequest += requestValue
+            }
+          }
+          previousInformation = currentInformation.toMap
+          previousRequest = currentRequest.toList
+          val newInformation = deltaInformation
+            .map({
+              case (key, value) => s"$key: $value"
+            })
+            .mkString(", ")
+          val newRequest = deltaRequest.mkString(", ")
+          val answer = if (newRequest.nonEmpty || newInformation.nonEmpty) {
+            Seq(newInformation, newRequest).mkString("; ").trim
+          } else {
+            "None"
+          }
+          examples += QuestionAnswerContext(question, answer, context)
+        })
+      })
+      examples
+    }
+
+    override def extraDataFlows: Seq[DataFlow[_]] =
+      Seq(
+        trainJsonl
+          .dependsOn(
+            workingDirectory,
+            DataDownload.GoalOrientedDialogue.wozTrainDataEn,
+            DataDownload.GoalOrientedDialogue.wozTrainDataDe
+          )
+          .implBy((dir, enFile, deFile) => {
+            implicit val formats: Formats = DefaultFormats
+            val examples = parseWozDialogues(parse(enFile).extract[JArray]) ++ parseWozDialogues(
+              parse(deFile).extract[JArray]
+            )
+            Utils.writeToFile(dir.resolve("train.jsonl").toFile, writer => {
+              examples.foreach(l => writer.println(l.toJsonl))
+            })
+          }),
+        validationJsonl
+          .dependsOn(
+            workingDirectory,
+            DataDownload.GoalOrientedDialogue.wozValidationDataEn,
+            DataDownload.GoalOrientedDialogue.wozValidationDataDe
+          )
+          .implBy((dir, enFile, deFile) => {
+            implicit val formats: Formats = DefaultFormats
+            val examples = parseWozDialogues(parse(enFile).extract[JArray]) ++ parseWozDialogues(
+              parse(deFile).extract[JArray]
+            )
+            Utils.writeToFile(dir.resolve("validation.jsonl").toFile, writer => {
+              examples.foreach(l => writer.println(l.toJsonl))
+            })
+          }),
+        testJsonl
+          .dependsOn(
+            workingDirectory,
+            DataDownload.GoalOrientedDialogue.wozTestDataEn,
+            DataDownload.GoalOrientedDialogue.wozTestDataDe
+          )
+          .implBy((dir, enFile, deFile) => {
+            implicit val formats: Formats = DefaultFormats
+            val examples = parseWozDialogues(parse(enFile).extract[JArray]) ++ parseWozDialogues(
+              parse(deFile).extract[JArray]
+            )
+            Utils.writeToFile(dir.resolve("test.jsonl").toFile, writer => {
+              examples.foreach(l => writer.println(l.toJsonl))
+            })
+          }),
+        prepareAllData.dependsOnAllOf(testJsonl, trainJsonl, validationJsonl).implBy(files => files),
+      )
   }
 }
