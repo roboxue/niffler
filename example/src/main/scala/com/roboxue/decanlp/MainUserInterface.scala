@@ -10,24 +10,32 @@ import scala.util.{Failure, Success}
 object MainUserInterface {
   def main(args: Array[String]): Unit = {
     val system: ActorSystem = ActorSystem.create("example")
-    val downloader: Niffler = new DataDownload(
-      Seq(
-        DecaTask.QuestionAnswering,
-        DecaTask.Summarization,
-        DecaTask.SemanticParsing,
-        DecaTask.SemanticRoleLabeling,
-        DecaTask.CommonsenseReasoning,
-        DecaTask.GoalOrientedDialogue,
-        DecaTask.NaturalLanguageInference,
-        DecaTask.RelationExtraction,
-        DecaTask.NamedEntityRecognition,
-        DecaTask.SentimentAnalysis,
-        DecaTask.MachineTranslation("de", "en"),
-        DecaTask.MachineTranslation("en", "de"),
-      )
+    val decaTasks = Seq(
+      DecaTask.QuestionAnswering,
+      DecaTask.Summarization,
+      DecaTask.SemanticParsing,
+      DecaTask.SemanticRoleLabeling,
+      DecaTask.CommonsenseReasoning,
+      DecaTask.GoalOrientedDialogue,
+      DecaTask.NaturalLanguageInference,
+      DecaTask.RelationExtraction,
+      DecaTask.NamedEntityRecognition,
+      DecaTask.SentimentAnalysis,
+      DecaTask.MachineTranslation("de", "en"),
+      DecaTask.MachineTranslation("en", "de"),
     )
-    downloader
-      .asyncRun(DataDownload.downloadedData, Seq(DataDownload.dataPath := Paths.get("/tmp/decanlp")))
+
+    val downloader: Niffler = new DataDownload(decaTasks)
+    val dataLoader = new DataLoader(decaTasks)
+    val logic = downloader ++ dataLoader
+    logic
+      .asyncRun(
+        DataLoader.prepareAllData,
+        Seq(
+          DataDownload.dataPath := Paths.get("/tmp/decanlp/raw"),
+          DataLoader.workingDirectory := Paths.get("/tmp/decanlp/splits")
+        )
+      )
       .withAkka(system)
       .future
       .onComplete({

@@ -2,12 +2,13 @@ package com.roboxue.decanlp
 import java.net.URI
 import java.nio.file.{Files, Path}
 
-import com.roboxue.niffler.{Logic, Niffler, Token}
+import com.roboxue.niffler.{DataFlow, Logic, Niffler, Token}
 import org.json4s.Formats
 import org.json4s.jackson.JsonMethods._
+
 import scala.collection.JavaConverters._
 
-object SquadLoader extends Niffler {
+object QuestionAnsweringLoader extends Niffler {
   val squadFileList: Token[Seq[DownloadInstruction]] = Token("squad data download links")
   val maxSample: Token[Long] = Token("the max number of data to be loaded from each datasource")
   val tokenizer: Token[Sentence => Seq[String]] = Token("tokenize algorithm")
@@ -37,43 +38,41 @@ object SquadLoader extends Niffler {
     DownloadInstruction(URI.create("https://rajpurkar.github.io/SQuAD-explorer/dataset/dev-v2.0.json"), "dev.json"),
   )
 
-  val logic = new Logic(
-    Seq(
-      squadFileList := V2_0,
-      maxSample := 200000,
-      tokenizer := { a =>
-        RevtokTokenizer.tokenize(a, false, true).asScala
-      },
-      cleanCompiled.dependsOn(compiledDataSaveLocation).implBy(recursiveDelete),
-      cleanDownload.dependsOn(rawDataDownloadLocation).implBy(recursiveDelete),
-      downloadData.dependsOn(squadFileList, rawDataDownloadLocation).implBy(doDownloadData),
-      compileTrainData
-        .dependsOn(downloadData)
-        .implBy({ path =>
-          loadFromSQuAD(path.resolve("train.json"))
-        }),
-      compileValidationData
-        .dependsOn(downloadData)
-        .implBy({ path =>
-          loadFromSQuAD(path.resolve("dev.json"))
-        }),
-      saveCompiledData
-        .dependsOn(compileTrainData, compileValidationData, compiledDataSaveLocation)
-        .implBy({ (trainData, validationData, saveLocation) =>
-          trainData.writeTo(saveLocation.resolve(TRAIN_DATA_FILENAME).toFile)
-          validationData.writeTo(saveLocation.resolve(VALIDATION_DATA_FILENAME).toFile)
-        }),
-      tokenizedTrainData
-        .dependsOn(compileTrainData, tokenizer)
-        .implBy({ (dataset, tokenizer) =>
-          DecaTokenizedDataset(dataset.records.map(_.tokenize(tokenizer)))
-        }),
-      tokenizedValidationData
-        .dependsOn(compileValidationData, tokenizer)
-        .implBy({ (dataset, tokenizer) =>
-          DecaTokenizedDataset(dataset.records.map(_.tokenize(tokenizer)))
-        }),
-    )
+  override def dataFlows: Iterable[DataFlow[_]] = Seq(
+    squadFileList := V2_0,
+    maxSample := 200000,
+    tokenizer := { a =>
+      RevtokTokenizer.tokenize(a, false, true).asScala
+    },
+    cleanCompiled.dependsOn(compiledDataSaveLocation).implBy(recursiveDelete),
+    cleanDownload.dependsOn(rawDataDownloadLocation).implBy(recursiveDelete),
+    downloadData.dependsOn(squadFileList, rawDataDownloadLocation).implBy(doDownloadData),
+    compileTrainData
+      .dependsOn(downloadData)
+      .implBy({ path =>
+        loadFromSQuAD(path.resolve("train.json"))
+      }),
+    compileValidationData
+      .dependsOn(downloadData)
+      .implBy({ path =>
+        loadFromSQuAD(path.resolve("dev.json"))
+      }),
+    saveCompiledData
+      .dependsOn(compileTrainData, compileValidationData, compiledDataSaveLocation)
+      .implBy({ (trainData, validationData, saveLocation) =>
+        trainData.writeTo(saveLocation.resolve(TRAIN_DATA_FILENAME).toFile)
+        validationData.writeTo(saveLocation.resolve(VALIDATION_DATA_FILENAME).toFile)
+      }),
+    tokenizedTrainData
+      .dependsOn(compileTrainData, tokenizer)
+      .implBy({ (dataset, tokenizer) =>
+        DecaTokenizedDataset(dataset.records.map(_.tokenize(tokenizer)))
+      }),
+    tokenizedValidationData
+      .dependsOn(compileValidationData, tokenizer)
+      .implBy({ (dataset, tokenizer) =>
+        DecaTokenizedDataset(dataset.records.map(_.tokenize(tokenizer)))
+      }),
   )
 
   private def recursiveDelete(dir: Path): Unit = {

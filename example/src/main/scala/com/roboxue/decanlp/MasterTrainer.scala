@@ -28,14 +28,13 @@ object MasterTrainer {
     .implBy({ (model, words, embeddings, tokenizer) =>
       implicit val stateTracker: ExecutionStateTracker = new ExecutionStateTracker()
       for (task <- decaTasks) {
-        dataLoader.datasetTokenForTask(task)
         BatchTrainer.asyncRun(
           BatchTrainer.performTraining,
           Seq(
             BatchTrainer.modelStartState := model,
             BatchTrainer.saveSnapshotEvery := 5,
             BatchTrainer.modelSavingPath := Paths.get(""), // FIXME
-            BatchTrainer.batchData.dependsOn(dataLoader.datasetTokenForTask(task)).implBy(_.batchIterator)
+//            BatchTrainer.batchData.dependsOn(dataLoader.datasetTokenForTask(task)).implBy(_.batchIterator)
           )
         )
       }

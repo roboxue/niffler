@@ -1,11 +1,11 @@
 package com.roboxue.decanlp
-import java.io.File
+import java.io.{File, PrintWriter}
 import java.net.URL
 import java.nio.file.Path
 
 import org.apache.commons.io.FileUtils
 
-object DownloadUtils {
+object Utils {
   def downloadFromGoogleDrive(from: String, destination: File, overwrite: Boolean = false): File = {
     if (!overwrite && destination.exists()) {
       // don't overwrite
@@ -36,5 +36,18 @@ object DownloadUtils {
       }
       dest
     }
+  }
+
+  def writeToFile(destination: File, printToFile: PrintWriter => Unit): File = {
+    if (destination.exists()) {
+      // do nothing
+    } else {
+      destination.getParentFile.mkdirs()
+      val writer = new PrintWriter(destination)
+      printToFile(writer)
+      writer.close()
+    }
+    destination
+
   }
 }

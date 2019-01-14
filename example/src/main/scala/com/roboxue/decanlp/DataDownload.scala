@@ -9,80 +9,79 @@ import scala.collection.mutable.ListBuffer
 
 class DataDownload(decaTasks: Seq[DecaTask]) extends Niffler {
 
-  override val logic: Logic = {
-    val dataFlows = ListBuffer[DataFlow[_]]()
+  override def dataFlows: Iterable[DataFlow[_]] = {
+    val _dataFlows = ListBuffer[DataFlow[_]]()
     decaTasks.foreach({
       case DecaTask.QuestionAnswering =>
-        dataFlows ++= QuestionAnswering.dataFlows
-        dataFlows ++= Seq(
+        _dataFlows ++= QuestionAnswering.dataFlows
+        _dataFlows ++= Seq(
           QuestionAnswering.dataPath.dependsOn(dataPath).implBy(_.resolve("question_answering")),
           downloadedData ++= QuestionAnswering.downloadData
         )
       case DecaTask.Summarization =>
-        dataFlows ++= Summarization.dataFlows
-        dataFlows ++= Seq(
+        _dataFlows ++= Summarization.dataFlows
+        _dataFlows ++= Seq(
           Summarization.dataPath.dependsOn(dataPath).implBy(_.resolve("summarization")),
           downloadedData ++= Summarization.downloadData
         )
       case DecaTask.SemanticParsing =>
-        dataFlows ++= SemanticParsing.dataFlows
-        dataFlows ++= Seq(
+        _dataFlows ++= SemanticParsing.dataFlows
+        _dataFlows ++= Seq(
           SemanticParsing.dataPath.dependsOn(dataPath).implBy(_.resolve("semantic_parsing")),
           downloadedData ++= SemanticParsing.downloadData
         )
       case DecaTask.SemanticRoleLabeling =>
-        dataFlows ++= SemanticRoleLabeling.dataFlows
-        dataFlows ++= Seq(
+        _dataFlows ++= SemanticRoleLabeling.dataFlows
+        _dataFlows ++= Seq(
           SemanticRoleLabeling.dataPath.dependsOn(dataPath).implBy(_.resolve("semantic_role_labeling")),
           downloadedData ++= SemanticRoleLabeling.downloadData
         )
       case DecaTask.CommonsenseReasoning =>
-        dataFlows ++= CommonsenseReasoning.dataFlows
-        dataFlows ++= Seq(
+        _dataFlows ++= CommonsenseReasoning.dataFlows
+        _dataFlows ++= Seq(
           CommonsenseReasoning.dataPath.dependsOn(dataPath).implBy(_.resolve("commonsense_reasoning")),
           downloadedData ++= CommonsenseReasoning.downloadData
         )
       case DecaTask.GoalOrientedDialogue =>
-        dataFlows ++= GoalOrientedDialogue.dataFlows
-        dataFlows ++= Seq(
+        _dataFlows ++= GoalOrientedDialogue.dataFlows
+        _dataFlows ++= Seq(
           GoalOrientedDialogue.dataPath.dependsOn(dataPath).implBy(_.resolve("goal_oriented_dialogue")),
           downloadedData ++= GoalOrientedDialogue.downloadData
         )
       case DecaTask.NaturalLanguageInference =>
-        dataFlows ++= NaturalLanguageInference.dataFlows
-        dataFlows ++= Seq(
+        _dataFlows ++= NaturalLanguageInference.dataFlows
+        _dataFlows ++= Seq(
           NaturalLanguageInference.dataPath.dependsOn(dataPath).implBy(_.resolve("natural_language_inference")),
           downloadedData ++= NaturalLanguageInference.downloadData,
         )
       case DecaTask.RelationExtraction =>
-        dataFlows ++= RelationExtraction.dataFlows
-        dataFlows ++= Seq(
+        _dataFlows ++= RelationExtraction.dataFlows
+        _dataFlows ++= Seq(
           RelationExtraction.dataPath.dependsOn(dataPath).implBy(_.resolve("relation_extraction")),
           downloadedData ++= RelationExtraction.downloadData,
         )
       case DecaTask.NamedEntityRecognition =>
-        dataFlows ++= NamedEntityRecognition.dataFlows
-        dataFlows ++= Seq(
+        _dataFlows ++= NamedEntityRecognition.dataFlows
+        _dataFlows ++= Seq(
           NamedEntityRecognition.dataPath.dependsOn(dataPath).implBy(_.resolve("named_entity_recognition")),
           downloadedData ++= NamedEntityRecognition.downloadData,
         )
       case DecaTask.SentimentAnalysis =>
-        dataFlows ++= SentimentAnalysis.dataFlows
-        dataFlows ++= Seq(
+        _dataFlows ++= SentimentAnalysis.dataFlows
+        _dataFlows ++= Seq(
           SentimentAnalysis.dataPath.dependsOn(dataPath).implBy(_.resolve("sentiment_analysis")),
           downloadedData ++= SentimentAnalysis.downloadData,
         )
       case t @ DecaTask.MachineTranslation(source, target) =>
-        dataFlows ++= MachineTranslation.dataFlows
-        dataFlows ++= Seq(
+        _dataFlows ++= MachineTranslation.dataFlows
+        _dataFlows ++= Seq(
           MachineTranslation.dataPath.dependsOn(dataPath).implBy(_.resolve(s"machine_translation")),
           MachineTranslation.machineTranslationTasks += t,
           downloadedData ++= MachineTranslation.downloadData,
         )
     })
-    new Logic(dataFlows)
+    _dataFlows
   }
-
 }
 
 object DataDownload {
@@ -90,9 +89,9 @@ object DataDownload {
   val dataPath: Token[Path] = Token("the working folder for dataset download")
 
   trait DataDownloader {
-    private lazy val clazzName = getClass.getSimpleName.stripSuffix("$")
-    lazy val dataPath: Token[Path] = Token(s"the working folder for $clazzName dataset", s"dataPath$clazzName")
-    lazy val downloadData: Token[Seq[File]] = Token(s"perform download for $clazzName")
+    private val clazzName = getClass.getSimpleName.stripSuffix("$")
+    val dataPath: Token[Path] = Token(s"the working folder for $clazzName dataset", s"dataPath$clazzName")
+    val downloadData: Token[Seq[File]] = Token(s"perform download for $clazzName")
 
     def extraDataFlows: Seq[DataFlow[_]]
 
@@ -108,7 +107,7 @@ object DataDownload {
       squadTrainJson
         .dependsOn(dataPath)
         .implBy(
-          DownloadUtils
+          Utils
             .downloadOneFile(
               s"https://rajpurkar.github.io/SQuAD-explorer/dataset/train-v2.0.json",
               "squad_v2_qa_train.json"
@@ -117,7 +116,7 @@ object DataDownload {
       squadDevJson
         .dependsOn(dataPath)
         .implBy(
-          DownloadUtils
+          Utils
             .downloadOneFile(
               s"https://rajpurkar.github.io/SQuAD-explorer/dataset/dev-v2.0.json",
               "squad_v2_qa_dev.json"
@@ -143,7 +142,7 @@ object DataDownload {
               // log this
             } else {
               val archiveFile = path.resolve("dailymail_stories.tgz").toFile
-              DownloadUtils.downloadFromGoogleDrive(
+              Utils.downloadFromGoogleDrive(
                 "https://drive.google.com/uc?export=download&id=0BwmD_VLjROrfM1BxdkxVaTY2bWs",
                 archiveFile
               )
@@ -160,7 +159,7 @@ object DataDownload {
               // log this
             } else {
               val archiveFile = path.resolve("cnn_stories.tgz").toFile
-              DownloadUtils.downloadFromGoogleDrive(
+              Utils.downloadFromGoogleDrive(
                 "https://drive.google.com/uc?export=download&id=0BwmD_VLjROrfTHk4NFg2SndKcjQ",
                 archiveFile
               )
@@ -183,7 +182,7 @@ object DataDownload {
           if (output.exists()) {
             // log this
           } else {
-            val archiveFile = DownloadUtils
+            val archiveFile = Utils
               .downloadOneFile("https://github.com/salesforce/WikiSQL/raw/master/data.tar.bz2", "wikisql.tar.bz2")(path)
             CompressUtils.decompressTarBz(archiveFile, path.toFile)
             path.resolve("data").toFile.renameTo(output)
@@ -202,19 +201,15 @@ object DataDownload {
       trainData
         .dependsOn(dataPath)
         .implBy(
-          DownloadUtils
+          Utils
             .downloadOneFile("https://dada.cs.washington.edu/qasrl/data/wiki1.train.qa", "qasrl_srl_train.qa")
         ),
       testData
         .dependsOn(dataPath)
-        .implBy(
-          DownloadUtils.downloadOneFile("https://dada.cs.washington.edu/qasrl/data/wiki1.test.qa", "qasrl_srl_test.qa")
-        ),
+        .implBy(Utils.downloadOneFile("https://dada.cs.washington.edu/qasrl/data/wiki1.test.qa", "qasrl_srl_test.qa")),
       devData
         .dependsOn(dataPath)
-        .implBy(
-          DownloadUtils.downloadOneFile("https://dada.cs.washington.edu/qasrl/data/wiki1.dev.qa", "qasrl_srl_dev.qa")
-        ),
+        .implBy(Utils.downloadOneFile("https://dada.cs.washington.edu/qasrl/data/wiki1.dev.qa", "qasrl_srl_dev.qa")),
       downloadData
         .dependsOn(trainData, devData, testData)
         .implBy((train, dev, test) => {
@@ -229,7 +224,7 @@ object DataDownload {
       winogradSchemaData
         .dependsOn(dataPath)
         .implBy(
-          DownloadUtils
+          Utils
             .downloadOneFile("https://s3.amazonaws.com/research.metamind.io/decaNLP/data/schema.txt", "winograd_cr.txt")
         ),
       downloadData.dependsOn(winogradSchemaData).implBy(winogradSchemaData => Seq(winogradSchemaData)),
@@ -248,7 +243,7 @@ object DataDownload {
         wozTrainDataEn
           .dependsOn(dataPath)
           .implBy(
-            DownloadUtils.downloadOneFile(
+            Utils.downloadOneFile(
               "https://raw.githubusercontent.com/nmrksic/neural-belief-tracker/master/data/woz/woz_train_en.json",
               "woz_god_train_en.qa"
             )
@@ -256,7 +251,7 @@ object DataDownload {
         wozValidationDataEn
           .dependsOn(dataPath)
           .implBy(
-            DownloadUtils.downloadOneFile(
+            Utils.downloadOneFile(
               "https://raw.githubusercontent.com/nmrksic/neural-belief-tracker/master/data/woz/woz_validate_en.json",
               "woz_god_validate_en.qa"
             )
@@ -264,7 +259,7 @@ object DataDownload {
         wozTestDataEn
           .dependsOn(dataPath)
           .implBy(
-            DownloadUtils.downloadOneFile(
+            Utils.downloadOneFile(
               "https://raw.githubusercontent.com/nmrksic/neural-belief-tracker/master/data/woz/woz_test_en.json",
               "woz_god_test_en.qa"
             )
@@ -272,7 +267,7 @@ object DataDownload {
         wozTrainDataDe
           .dependsOn(dataPath)
           .implBy(
-            DownloadUtils.downloadOneFile(
+            Utils.downloadOneFile(
               "https://raw.githubusercontent.com/nmrksic/neural-belief-tracker/master/data/woz/woz_train_de.json",
               "woz_god_train_de.qa"
             )
@@ -280,7 +275,7 @@ object DataDownload {
         wozValidationDataDe
           .dependsOn(dataPath)
           .implBy(
-            DownloadUtils.downloadOneFile(
+            Utils.downloadOneFile(
               "https://raw.githubusercontent.com/nmrksic/neural-belief-tracker/master/data/woz/woz_validate_de.json",
               "woz_god_validate_de.qa"
             )
@@ -288,7 +283,7 @@ object DataDownload {
         wozTestDataDe
           .dependsOn(dataPath)
           .implBy(
-            DownloadUtils.downloadOneFile(
+            Utils.downloadOneFile(
               "https://raw.githubusercontent.com/nmrksic/neural-belief-tracker/master/data/woz/woz_test_de.json",
               "woz_god_test_de.qa"
             )
@@ -316,7 +311,7 @@ object DataDownload {
           if (output.exists()) {
             // log this
           } else {
-            val archiveFile = DownloadUtils
+            val archiveFile = Utils
               .downloadOneFile("http://www.nyu.edu/projects/bowman/multinli/multinli_1.0.zip", "multinli_nli.zip")(path)
             CompressUtils.decompressZip(archiveFile, path.toFile)
             path.resolve("multinli_1.0").toFile.renameTo(output)
@@ -337,7 +332,7 @@ object DataDownload {
           if (output.exists()) {
             // log this
           } else {
-            val archiveFile = DownloadUtils
+            val archiveFile = Utils
               .downloadOneFile("http://nlp.cs.washington.edu/zeroshot/relation_splits.tar.bz2", "zeroshot_re.tar.bz2")(
                 path
               )
@@ -358,7 +353,7 @@ object DataDownload {
       ontoNoteNERTrainData
         .dependsOn(dataPath)
         .implBy(
-          DownloadUtils
+          Utils
             .downloadOneFile(
               "http://conll.cemantix.org/2012/download/ids/english/all/train.id",
               "ontonotes_ner_train.id"
@@ -367,7 +362,7 @@ object DataDownload {
       ontoNoteNERDevData
         .dependsOn(dataPath)
         .implBy(
-          DownloadUtils
+          Utils
             .downloadOneFile(
               "http://conll.cemantix.org/2012/download/ids/english/all/development.id",
               "ontonotes_ner_dev.id"
@@ -376,7 +371,7 @@ object DataDownload {
       ontoNoteNERTestData
         .dependsOn(dataPath)
         .implBy(
-          DownloadUtils
+          Utils
             .downloadOneFile("http://conll.cemantix.org/2012/download/ids/english/all/test.id", "ontonotes_ner_test.id")
         ),
       downloadData.dependsOnAllOf(ontoNoteNERTrainData, ontoNoteNERDevData, ontoNoteNERTestData).implBy(files => files)
@@ -396,7 +391,7 @@ object DataDownload {
           if (output.exists()) {
             // log this
           } else {
-            val archiveFile = DownloadUtils
+            val archiveFile = Utils
               .downloadOneFile(
                 "http://ai.stanford.edu/~amaas/data/sentiment/aclImdb_v1.tar.gz",
                 "aclimdb_v1_sa.tar.gz"
@@ -409,7 +404,7 @@ object DataDownload {
       treeBankSubsetTrainData
         .dependsOn(dataPath)
         .implBy(
-          DownloadUtils.downloadOneFile(
+          Utils.downloadOneFile(
             "https://raw.githubusercontent.com/openai/generating-reviews-discovering-sentiment/master/data/train_binary_sent.csv",
             "sst_sa_train.csv"
           )
@@ -417,7 +412,7 @@ object DataDownload {
       treeBankSubsetDevData
         .dependsOn(dataPath)
         .implBy(
-          DownloadUtils.downloadOneFile(
+          Utils.downloadOneFile(
             "https://raw.githubusercontent.com/openai/generating-reviews-discovering-sentiment/master/data/dev_binary_sent.csv",
             "sst_sa_dev.csv"
           )
@@ -425,7 +420,7 @@ object DataDownload {
       treeBankSubsetTestData
         .dependsOn(dataPath)
         .implBy(
-          DownloadUtils.downloadOneFile(
+          Utils.downloadOneFile(
             "https://raw.githubusercontent.com/openai/generating-reviews-discovering-sentiment/master/data/test_binary_sent.csv",
             "sst_sa_test.csv"
           )
@@ -450,7 +445,7 @@ object DataDownload {
             if (output.exists()) {
               // log this
             } else {
-              val archive = DownloadUtils.downloadOneFile(
+              val archive = Utils.downloadOneFile(
                 s"https://wit3.fbk.eu/archive/2016-01//texts/$source/$target/$source-$target.tgz",
                 s"iwslt-mt-$source-$target.tgz"
               )(path)

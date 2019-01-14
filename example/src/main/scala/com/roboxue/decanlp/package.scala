@@ -42,15 +42,21 @@ package object decanlp {
 
     def toJson: JObject = {
       import org.json4s.JsonDSL._
-      ("question" -> question) ~
-        ("answer" -> answer) ~
-        ("context" -> context)
+      ("context" -> context) ~
+        ("question" -> question) ~
+        ("answer" -> answer)
+    }
+
+    def toJsonl: String = {
+      compact(toJson)
     }
 
     def tokenize(tokenizer: Sentence => Seq[String]): DecaTokenizedResult = {
       DecaTokenizedResult(tokenizer(question), tokenizer(context), tokenizer(answer))
     }
   }
+
+  case class QuestionAnswerContext(question: Sentence, answer: Sentence, context: Sentence) extends DecaRawInput
 
   case class DecaTokenizedResult(question: Seq[String], context: Seq[String], answer: Seq[String])
 

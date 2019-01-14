@@ -8,21 +8,18 @@ import com.roboxue.niffler.execution.AsyncExecution
 object Niffler {}
 
 trait Niffler {
-  val logic: Logic
+  self =>
+  def dataFlows: Iterable[DataFlow[_]]
 
   def asyncRun[T](token: Token[T], extraFlow: Iterable[DataFlow[_]] = Iterable.empty)(
     implicit sc: ExecutionStateTracker = new ExecutionStateTracker
   ): AsyncExecution[T] = {
-    if (extraFlow.isEmpty) {
-      AsyncExecution(logic, sc.getExecutionState, token, AsyncExecution.executionId.incrementAndGet(), Some(sc))
-    } else {
-      AsyncExecution(
-        logic.diverge(extraFlow),
-        sc.getExecutionState,
-        token,
-        AsyncExecution.executionId.incrementAndGet(),
-        Some(sc)
-      )
+    new Logic(dataFlows).asyncRun(token, extraFlow)(sc)
+  }
+
+  def ++(another: Niffler): Niffler = new Niffler {
+    override def dataFlows: Iterable[DataFlow[_]] = {
+      self.dataFlows ++ another.dataFlows
     }
   }
 }
