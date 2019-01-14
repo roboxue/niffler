@@ -303,6 +303,7 @@ object DataDownload {
 
   object NaturalLanguageInference extends DataDownloader {
     val multiNLIData: Token[File] = Token("multi nli 1.0 dataset")
+    val snliData: Token[File] = Token("stanford nli 1.0 dataset")
     override def extraDataFlows: Seq[DataFlow[_]] = Seq(
       multiNLIData
         .dependsOn(dataPath)
@@ -315,6 +316,20 @@ object DataDownload {
               .downloadOneFile("http://www.nyu.edu/projects/bowman/multinli/multinli_1.0.zip", "multinli_nli.zip")(path)
             CompressUtils.decompressZip(archiveFile, path.toFile)
             path.resolve("multinli_1.0").toFile.renameTo(output)
+          }
+          output
+        }),
+      snliData
+        .dependsOn(dataPath)
+        .implBy(path => {
+          val output = path.resolve("snli_nli").toFile
+          if (output.exists()) {
+            // log this
+          } else {
+            val archiveFile =
+              Utils.downloadOneFile("https://nlp.stanford.edu/projects/snli/snli_1.0.zip", "snli_nli.zip")(path)
+            CompressUtils.decompressZip(archiveFile, path.toFile)
+            path.resolve("snli_1.0").toFile.renameTo(output)
           }
           output
         }),

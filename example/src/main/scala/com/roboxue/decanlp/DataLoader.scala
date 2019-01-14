@@ -37,8 +37,16 @@ class DataLoader(decaTasks: Seq[DecaTask]) extends Niffler {
           GoalOrientedDialogue.workingDirectory.dependsOn(workingDirectory).implBy(_.resolve("goal_oriented_dialogue")),
           prepareAllData ++= GoalOrientedDialogue.prepareAllData
         )
-      case DecaTask.NamedEntityRecognition                                             =>
-      case DecaTask.NaturalLanguageInference                                           =>
+      case DecaTask.NamedEntityRecognition =>
+      // Not supported
+      case DecaTask.NaturalLanguageInference =>
+        _dataFlows ++= NaturalLanguageInference.dataFlows
+        _dataFlows ++= Seq(
+          NaturalLanguageInference.workingDirectory
+            .dependsOn(workingDirectory)
+            .implBy(_.resolve("natural_language_inference")),
+          prepareAllData ++= NaturalLanguageInference.prepareAllData
+        )
       case DecaTask.QuestionAnswering                                                  =>
       case DecaTask.RelationExtraction                                                 =>
       case DecaTask.SemanticParsing                                                    =>
@@ -97,19 +105,20 @@ object DataLoader {
   trait BaseDataLoader extends Niffler {
     private val clazzName = getClass.getSimpleName.stripSuffix("$")
     val workingDirectory: Token[Path] = Token(s"the working directory for data loading and splitting for $clazzName")
+    val trainJsonl: Token[File] = Token("training data")
+    val validationJsonl: Token[File] = Token("validation data")
+    val testJsonl: Token[File] = Token("test data")
     val prepareAllData: Token[Seq[File]] = Token(s"ready to use dataset for $clazzName")
     def extraDataFlows: Seq[DataFlow[_]]
 
-    override final def dataFlows: Seq[DataFlow[_]] = extraDataFlows
+    override final def dataFlows: Seq[DataFlow[_]] =
+      Seq(prepareAllData.dependsOnAllOf(trainJsonl, testJsonl, validationJsonl).implBy(files => files)) ++ extraDataFlows
   }
 
   object CommonsenseReasoning extends BaseDataLoader {
     val parsedWinogradSchema: Token[Seq[QuestionAnswerContext]] = Token(
       "parse winograd schema into question context and answer"
     )
-    val trainJsonl: Token[File] = Token("training data")
-    val validationJsonl: Token[File] = Token("validation data")
-    val testJsonl: Token[File] = Token("test data")
 
     private[decanlp] def extractVariations(context: String): Seq[String] = {
       val regex = "\\[.*\\]".r
@@ -172,15 +181,10 @@ object DataLoader {
             winogradExamples.drop(80).dropRight(100).foreach(l => writer.println(l.toJsonl))
           })
         }),
-      prepareAllData.dependsOnAllOf(trainJsonl, testJsonl, validationJsonl).implBy(files => files)
     )
   }
 
   object GoalOrientedDialogue extends BaseDataLoader {
-    val trainJsonl: Token[File] = Token("training data")
-    val validationJsonl: Token[File] = Token("validation data")
-    val testJsonl: Token[File] = Token("test data")
-
     private[decanlp] def parseWozDialogues(dialogues: JArray): Seq[QuestionAnswerContext] = {
       implicit val formats: Formats = DefaultFormats
       val examples = ListBuffer.empty[QuestionAnswerContext]
@@ -294,7 +298,69 @@ object DataLoader {
               examples.foreach(l => writer.println(l.toJsonl))
             })
           }),
-        prepareAllData.dependsOnAllOf(testJsonl, trainJsonl, validationJsonl).implBy(files => files),
       )
+  }
+
+  object NaturalLanguageInference extends BaseDataLoader {
+    private[decanlp] def parseSNLI(file: File): Seq[QuestionAnswerContext] = {
+      val examples = ListBuffer.empty[QuestionAnswerContext]
+      Source
+        .fromFile(file)
+        .getLines()
+        .foreach(line => {
+          for (JObject(root) <- parse(line);
+               JField("sentence1", JString(sentence1)) <- root;
+               JField("sentence2", JString(sentence2)) <- root;
+               JField("gold_label", JString(goldLabel)) <- root) {
+            examples += QuestionAnswerContext(
+              s"""Hypothesis: "$sentence2" -- entailment, neutral, or contradiction?""",
+              goldLabel,
+              s"""Premise: "$sentence1""""
+            )
+          }
+        })
+      examples
+    }
+
+    private[decanlp] def parseMultiNLI(file: File): Seq[QuestionAnswerContext] = parseSNLI(file)
+
+    override def extraDataFlows: Seq[DataFlow[_]] = Seq(
+      trainJsonl
+        .dependsOn(
+          workingDirectory,
+          DataDownload.NaturalLanguageInference.snliData,
+          DataDownload.NaturalLanguageInference.multiNLIData
+        )
+        .implBy((dir, snli, multinli) => {
+          val examples = parseSNLI(snli.toPath.resolve("snli_1.0_train.jsonl").toFile) ++ parseMultiNLI(
+            multinli.toPath.resolve("multinli_1.0_train.jsonl").toFile
+          )
+          Utils.writeToFile(dir.resolve("train.jsonl").toFile, writer => {
+            examples.foreach(l => writer.println(l.toJsonl))
+          })
+        }),
+      validationJsonl
+        .dependsOn(
+          workingDirectory,
+          DataDownload.NaturalLanguageInference.snliData,
+          DataDownload.NaturalLanguageInference.multiNLIData
+        )
+        .implBy((dir, snli, multinli) => {
+          val examples = parseSNLI(snli.toPath.resolve("snli_1.0_dev.jsonl").toFile) ++
+            parseMultiNLI(multinli.toPath.resolve("multinli_1.0_dev_matched.jsonl").toFile) ++
+            parseMultiNLI(multinli.toPath.resolve("multinli_1.0_dev_mismatched.jsonl").toFile)
+          Utils.writeToFile(dir.resolve("validation.jsonl").toFile, writer => {
+            examples.foreach(l => writer.println(l.toJsonl))
+          })
+        }),
+      testJsonl
+        .dependsOn(workingDirectory, DataDownload.NaturalLanguageInference.snliData)
+        .implBy((dir, snli) => {
+          val examples = parseSNLI(snli.toPath.resolve("snli_1.0_test.jsonl").toFile)
+          Utils.writeToFile(dir.resolve("test.jsonl").toFile, writer => {
+            examples.foreach(l => writer.println(l.toJsonl))
+          })
+        }),
+    )
   }
 }
