@@ -47,7 +47,12 @@ class DataLoader(decaTasks: Seq[DecaTask]) extends Niffler {
             .implBy(_.resolve("natural_language_inference")),
           prepareAllData ++= NaturalLanguageInference.prepareAllData
         )
-      case DecaTask.QuestionAnswering                                                  =>
+      case DecaTask.QuestionAnswering =>
+        _dataFlows ++= QuestionAnswering.dataFlows
+        _dataFlows ++= Seq(
+          QuestionAnswering.workingDirectory.dependsOn(workingDirectory).implBy(_.resolve("question_answering")),
+          prepareAllData ++= QuestionAnswering.prepareAllData
+        )
       case DecaTask.RelationExtraction                                                 =>
       case DecaTask.SemanticParsing                                                    =>
       case DecaTask.SemanticRoleLabeling                                               =>
@@ -361,6 +366,48 @@ object DataLoader {
             examples.foreach(l => writer.println(l.toJsonl))
           })
         }),
+    )
+  }
+
+  object QuestionAnswering extends BaseDataLoader {
+    case class SquadParagraph(context: String, qas: Seq[SquadQA])
+    case class SquadQA(question: String, id: String, answers: Seq[SquadAnswer])
+    case class SquadAnswer(text: String, answer_start: Int)
+
+    private[decanlp] def parseSquad(file: File): Seq[QuestionAnswerContext] = {
+      implicit val format: Formats = org.json4s.DefaultFormats
+      for (JArray(paragraphs) <- parse(file) \ "data" \ "paragraphs";
+           JObject(p) <- paragraphs;
+           JField("context", JString(context)) <- p;
+           JField("qas", JArray(qas)) <- p;
+           JObject(qa) <- qas;
+           JField("question", JString(question)) <- qa;
+           JField("answers", JArray(answers)) <- qa) yield {
+        if (answers.isEmpty) {
+          QuestionAnswerContext(question, "unanswerable", context)
+        } else {
+          val answer = (answers.head \ "text").extract[String]
+          QuestionAnswerContext(question, answer, context)
+        }
+      }
+    }
+
+    override def extraDataFlows: Seq[DataFlow[_]] = Seq(
+      trainJsonl
+        .dependsOn(workingDirectory, DataDownload.QuestionAnswering.squadTrainJson)
+        .implBy((dir, squad) => {
+          Utils.writeToFile(dir.resolve("train.jsonl").toFile, writer => {
+            parseSquad(squad).foreach(l => writer.println(l.toJsonl))
+          })
+        }),
+      validationJsonl
+        .dependsOn(workingDirectory, DataDownload.QuestionAnswering.squadDevJson)
+        .implBy((dir, squad) => {
+          Utils.writeToFile(dir.resolve("validation.jsonl").toFile, writer => {
+            parseSquad(squad).foreach(l => writer.println(l.toJsonl))
+          })
+        }),
+      prepareAllData.dependsOnAllOf(trainJsonl, validationJsonl).implBy(files => files),
     )
   }
 }
