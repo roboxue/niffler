@@ -17,7 +17,6 @@ package object decanlp {
     case object NamedEntityRecognition extends DecaTask
     case object NaturalLanguageInference extends DecaTask
     case object QuestionAnswering extends DecaTask
-    case object RelationExtraction extends DecaTask
     case object SemanticParsing extends DecaTask
     case object SemanticRoleLabeling extends DecaTask
     case object SentimentAnalysis extends DecaTask

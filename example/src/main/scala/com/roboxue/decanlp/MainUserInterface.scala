@@ -18,7 +18,6 @@ object MainUserInterface {
       DecaTask.CommonsenseReasoning,
       DecaTask.GoalOrientedDialogue,
       DecaTask.NaturalLanguageInference,
-      DecaTask.RelationExtraction,
       DecaTask.NamedEntityRecognition,
       DecaTask.SentimentAnalysis,
       DecaTask.MachineTranslation("de", "en"),

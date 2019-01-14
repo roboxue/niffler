@@ -54,12 +54,6 @@ class DataDownload(decaTasks: Seq[DecaTask]) extends Niffler {
           NaturalLanguageInference.dataPath.dependsOn(dataPath).implBy(_.resolve("natural_language_inference")),
           downloadedData ++= NaturalLanguageInference.downloadData,
         )
-      case DecaTask.RelationExtraction =>
-        _dataFlows ++= RelationExtraction.dataFlows
-        _dataFlows ++= Seq(
-          RelationExtraction.dataPath.dependsOn(dataPath).implBy(_.resolve("relation_extraction")),
-          downloadedData ++= RelationExtraction.downloadData,
-        )
       case DecaTask.NamedEntityRecognition =>
         _dataFlows ++= NamedEntityRecognition.dataFlows
         _dataFlows ++= Seq(
@@ -102,6 +96,7 @@ object DataDownload {
 
     val squadTrainJson: Token[File] = Token("the location of the train.json of squad v2")
     val squadDevJson: Token[File] = Token("the location of the dev.json of squad v2")
+    val zeroShotREData: Token[File] = Token("zero shot relation extraction dataset")
 
     override def extraDataFlows: Seq[DataFlow[_]] = Seq(
       squadTrainJson
@@ -122,8 +117,24 @@ object DataDownload {
               "squad_v2_qa_dev.json"
             )
         ),
+      zeroShotREData
+        .dependsOn(dataPath)
+        .implBy(path => {
+          val output = path.resolve("zeroshot_re").toFile
+          if (output.exists()) {
+            // log this
+          } else {
+            val archiveFile = Utils
+              .downloadOneFile("http://nlp.cs.washington.edu/zeroshot/relation_splits.tar.bz2", "zeroshot_re.tar.bz2")(
+                path
+              )
+            CompressUtils.decompressTarBz(archiveFile, path.toFile)
+            path.resolve("relation_splits").toFile.renameTo(output)
+          }
+          output
+        }),
       downloadData
-        .dependsOnAllOf(squadTrainJson, squadDevJson)
+        .dependsOnAllOf(squadTrainJson, squadDevJson, zeroShotREData)
         .implBy(files => files)
     )
   }
@@ -334,29 +345,6 @@ object DataDownload {
           output
         }),
       downloadData.dependsOn(multiNLIData).implBy(multiNLIData => Seq(multiNLIData))
-    )
-  }
-
-  object RelationExtraction extends DataDownloader {
-    val zeroShotREData: Token[File] = Token("zero shot relation extraction dataset")
-    override def extraDataFlows: Seq[DataFlow[_]] = Seq(
-      zeroShotREData
-        .dependsOn(dataPath)
-        .implBy(path => {
-          val output = path.resolve("zeroshot_re").toFile
-          if (output.exists()) {
-            // log this
-          } else {
-            val archiveFile = Utils
-              .downloadOneFile("http://nlp.cs.washington.edu/zeroshot/relation_splits.tar.bz2", "zeroshot_re.tar.bz2")(
-                path
-              )
-            CompressUtils.decompressTarBz(archiveFile, path.toFile)
-            path.resolve("relation_splits").toFile.renameTo(output)
-          }
-          output
-        }),
-      downloadData.dependsOn(zeroShotREData).implBy(zeroShotREData => Seq(zeroShotREData))
     )
   }
 
