@@ -53,7 +53,12 @@ class DataLoader(decaTasks: Seq[DecaTask]) extends Niffler {
           QuestionAnswering.workingDirectory.dependsOn(workingDirectory).implBy(_.resolve("question_answering")),
           prepareAllData ++= QuestionAnswering.prepareAllData
         )
-      case DecaTask.SemanticParsing                                                    =>
+      case DecaTask.SemanticParsing =>
+        _dataFlows ++= SemanticParsing.dataFlows
+        _dataFlows ++= Seq(
+          SemanticParsing.workingDirectory.dependsOn(workingDirectory).implBy(_.resolve("semantic_parsing")),
+          prepareAllData ++= SemanticParsing.prepareAllData
+        )
       case DecaTask.SemanticRoleLabeling                                               =>
       case DecaTask.SentimentAnalysis                                                  =>
       case DecaTask.Summarization                                                      =>
@@ -109,9 +114,9 @@ object DataLoader {
   protected trait BaseDataLoader extends Niffler {
     private val clazzName = getClass.getSimpleName.stripSuffix("$")
     val workingDirectory: Token[Path] = Token(s"the working directory for data loading and splitting for $clazzName")
-    val trainJsonl: Token[File] = Token("training data")
-    val validationJsonl: Token[File] = Token("validation data")
-    val testJsonl: Token[File] = Token("test data")
+    val trainJsonl: Token[File] = Token(s"training data for $clazzName")
+    val validationJsonl: Token[File] = Token(s"validation data $clazzName")
+    val testJsonl: Token[File] = Token(s"test data for $clazzName")
     val prepareAllData: Token[Seq[File]] = Token(s"ready to use dataset for $clazzName")
     def extraDataFlows: Seq[DataFlow[_]]
 
@@ -453,6 +458,128 @@ object DataLoader {
               Range(0, 5)
                 .flatMap(i => parseZeroShot(zre.toPath.resolve(s"test.$i").toFile))
                 .foreach(l => writer.println(l.toJsonl))
+            }
+          )
+        }),
+    )
+  }
+
+  object SemanticParsing extends BaseDataLoader {
+    private[decanlp] def parseWikiSqlData(tableFile: File,
+                                          dataFile: File,
+                                          useQueryAsQuestion: Boolean): Seq[QuestionAnswerContext] = {
+      implicit val formats: Formats = DefaultFormats
+      val tables: Map[String, WikiSqlTable] =
+        Source
+          .fromFile(tableFile)
+          .getLines()
+          .map(line => {
+            val table = parse(line).extract[WikiSqlTable]
+            table.id -> table
+          })
+          .toMap
+
+      Source
+        .fromFile(dataFile)
+        .getLines()
+        .map(l => {
+          val entry = parse(l).extract[WikiSqlLine]
+          val table = tables(entry.table_id)
+          val answer = WikiSqlBuilder.toSqlQuery(entry.sql, table.header)
+          val (question, context) = if (useQueryAsQuestion) {
+            (
+              entry.question,
+              s"The table has columns ${table.header.mkString(", ")} and key words " +
+                s"${(WikiSqlBuilder.agg_ops.drop(0) ++ WikiSqlBuilder.cond_ops ++ WikiSqlBuilder.sysms).mkString(", ")}"
+            )
+          } else {
+            ("What is the translation from English to SQL?", entry.question)
+          }
+          QuestionAnswerContext(question, answer, context)
+        })
+        .toSeq
+
+    }
+    case class WikiSqlTable(header: Seq[String], id: String)
+    case class WikiSqlLine(table_id: String, question: String, sql: WikiSqlQuery)
+    case class WikiSqlQuery(agg: Int, sel: Int, conds: Seq[Seq[String]])
+    object WikiSqlBuilder {
+      val agg_ops: Seq[JNIModelReference] = Seq("", "MAX", "MIN", "COUNT", "SUM", "AVG")
+      val cond_ops: Seq[JNIModelReference] = Seq("=", ">", "<", "OP")
+      val sysms: Seq[JNIModelReference] = Seq(
+        "SELECT",
+        "WHERE",
+        "AND",
+        "COL",
+        "TABLE",
+        "CAPTION",
+        "PAGE",
+        "SECTION",
+        "OP",
+        "COND",
+        "QUESTION",
+        "AGG",
+        "AGGOPS",
+        "CONDOPS"
+      )
+      def toSqlQuery(sql: WikiSqlQuery, header: Seq[String]): String = {
+        val query = StringBuilder.newBuilder
+        def getCol(i: Int): String = {
+          if (header.isEmpty) s"col$i" else s"`${header(i)}`"
+        }
+        query.append(s"""SELECT ${agg_ops(sql.agg)} ${getCol(sql.sel)} FROM table""")
+        if (sql.conds.nonEmpty) {
+          query.append((for (Seq(column, operator, value) <- sql.conds) yield {
+            s"${getCol(column.toInt)} ${cond_ops(operator.toInt)} '$value'"
+          }).mkString(" WHERE ", " AND ", ""))
+        }
+        query.toString()
+      }
+    }
+
+    val useQueryAsQuestion: Token[Boolean] = Token("use query as question if true, otherwise as context")
+
+    override def extraDataFlows: Seq[DataFlow[_]] = Seq(
+      useQueryAsQuestion := false,
+      trainJsonl
+        .dependsOn(workingDirectory, useQueryAsQuestion, DataDownload.SemanticParsing.wikiSqlData)
+        .implBy((dir, useQueryAsQuestion, wikiSql) => {
+          Utils.writeToFile(
+            dir.resolve("train.jsonl").toFile,
+            writer => {
+              parseWikiSqlData(
+                wikiSql.toPath.resolve("train.tables.jsonl").toFile,
+                wikiSql.toPath.resolve("train.jsonl").toFile,
+                useQueryAsQuestion
+              ).foreach(l => writer.println(l.toJsonl))
+            }
+          )
+        }),
+      validationJsonl
+        .dependsOn(workingDirectory, useQueryAsQuestion, DataDownload.SemanticParsing.wikiSqlData)
+        .implBy((dir, useQueryAsQuestion, wikiSql) => {
+          Utils.writeToFile(
+            dir.resolve("validation.jsonl").toFile,
+            writer => {
+              parseWikiSqlData(
+                wikiSql.toPath.resolve("dev.tables.jsonl").toFile,
+                wikiSql.toPath.resolve("dev.jsonl").toFile,
+                useQueryAsQuestion
+              ).foreach(l => writer.println(l.toJsonl))
+            }
+          )
+        }),
+      testJsonl
+        .dependsOn(workingDirectory, useQueryAsQuestion, DataDownload.SemanticParsing.wikiSqlData)
+        .implBy((dir, useQueryAsQuestion, wikiSql) => {
+          Utils.writeToFile(
+            dir.resolve("test.jsonl").toFile,
+            writer => {
+              parseWikiSqlData(
+                wikiSql.toPath.resolve("test.tables.jsonl").toFile,
+                wikiSql.toPath.resolve("test.jsonl").toFile,
+                useQueryAsQuestion
+              ).foreach(l => writer.println(l.toJsonl))
             }
           )
         }),

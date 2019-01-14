@@ -55,7 +55,18 @@ package object decanlp {
     }
   }
 
-  case class QuestionAnswerContext(question: Sentence, answer: Sentence, context: Sentence) extends DecaRawInput
+  object QuestionAnswerContext {
+    private[decanlp] def cleanUp(sentence: Sentence): Sentence = {
+      sentence.split("\\s+").mkString(" ")
+    }
+
+    def apply(question: Sentence, answer: Sentence, context: Sentence): QuestionAnswerContext = {
+      new QuestionAnswerContext(cleanUp(question), cleanUp(answer), cleanUp(context))
+    }
+  }
+
+  class QuestionAnswerContext private (val question: Sentence, val answer: Sentence, val context: Sentence)
+      extends DecaRawInput
 
   case class DecaTokenizedResult(question: Seq[String], context: Seq[String], answer: Seq[String])
 
