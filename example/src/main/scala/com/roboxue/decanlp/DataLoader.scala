@@ -53,7 +53,12 @@ class DataLoader(decaTasks: Seq[DecaTask]) extends Niffler {
           QuestionAnswering.workingDirectory.dependsOn(workingDirectory).implBy(_.resolve("question_answering")),
           prepareAllData ++= QuestionAnswering.prepareAllData
         )
-      case DecaTask.RelationExtraction                                                 =>
+      case DecaTask.RelationExtraction =>
+        _dataFlows ++= RelationExtraction.dataFlows
+        _dataFlows ++= Seq(
+          RelationExtraction.workingDirectory.dependsOn(workingDirectory).implBy(_.resolve("relation_extraction")),
+          prepareAllData ++= RelationExtraction.prepareAllData
+        )
       case DecaTask.SemanticParsing                                                    =>
       case DecaTask.SemanticRoleLabeling                                               =>
       case DecaTask.SentimentAnalysis                                                  =>
@@ -107,7 +112,7 @@ object DataLoader {
 //      }
 //  }
 
-  trait BaseDataLoader extends Niffler {
+  protected trait BaseDataLoader extends Niffler {
     private val clazzName = getClass.getSimpleName.stripSuffix("$")
     val workingDirectory: Token[Path] = Token(s"the working directory for data loading and splitting for $clazzName")
     val trainJsonl: Token[File] = Token("training data")
@@ -408,6 +413,65 @@ object DataLoader {
           })
         }),
       prepareAllData.dependsOnAllOf(trainJsonl, validationJsonl).implBy(files => files),
+    )
+  }
+
+  object RelationExtraction extends BaseDataLoader {
+    private[decanlp] def parseZeroShot(zreFile: File): Seq[QuestionAnswerContext] = {
+      Source
+        .fromFile(zreFile)
+        .getLines()
+        .map(line => {
+          val elements = line.split('\t')
+          if (elements.length == 4) {
+            val Array(_, question, subject, context) = elements
+            QuestionAnswerContext(question.replace("XXX", subject), "unanswerable", context)
+          } else {
+            val Array(_, question, subject, context) = elements.take(4)
+            val answer = elements.drop(4).mkString(", ")
+            QuestionAnswerContext(question.replace("XXX", subject), answer, context)
+          }
+        })
+        .toSeq
+    }
+
+    override def extraDataFlows: Seq[DataFlow[_]] = Seq(
+      trainJsonl
+        .dependsOn(workingDirectory, DataDownload.RelationExtraction.zeroShotREData)
+        .implBy((dir, zre) => {
+          Utils.writeToFile(
+            dir.resolve("train.jsonl").toFile,
+            writer => {
+              Range(0, 5)
+                .flatMap(i => parseZeroShot(zre.toPath.resolve(s"train.$i").toFile))
+                .foreach(l => writer.println(l.toJsonl))
+            }
+          )
+        }),
+      validationJsonl
+        .dependsOn(workingDirectory, DataDownload.RelationExtraction.zeroShotREData)
+        .implBy((dir, zre) => {
+          Utils.writeToFile(
+            dir.resolve("validation.jsonl").toFile,
+            writer => {
+              Range(0, 5)
+                .flatMap(i => parseZeroShot(zre.toPath.resolve(s"dev.$i").toFile))
+                .foreach(l => writer.println(l.toJsonl))
+            }
+          )
+        }),
+      testJsonl
+        .dependsOn(workingDirectory, DataDownload.RelationExtraction.zeroShotREData)
+        .implBy((dir, zre) => {
+          Utils.writeToFile(
+            dir.resolve("test.jsonl").toFile,
+            writer => {
+              Range(0, 5)
+                .flatMap(i => parseZeroShot(zre.toPath.resolve(s"test.$i").toFile))
+                .foreach(l => writer.println(l.toJsonl))
+            }
+          )
+        }),
     )
   }
 }
