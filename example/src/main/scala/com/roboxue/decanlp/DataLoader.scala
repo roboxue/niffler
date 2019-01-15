@@ -5,8 +5,8 @@ import java.util.concurrent.ConcurrentHashMap
 
 import com.roboxue.decanlp.DataLoader._
 import com.roboxue.niffler._
-import org.json4s.{DefaultFormats, _}
 import org.json4s.jackson.JsonMethods._
+import org.json4s.{DefaultFormats, _}
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
@@ -59,7 +59,12 @@ class DataLoader(decaTasks: Seq[DecaTask]) extends Niffler {
           SemanticParsing.workingDirectory.dependsOn(workingDirectory).implBy(_.resolve("semantic_parsing")),
           prepareAllData ++= SemanticParsing.prepareAllData
         )
-      case DecaTask.SemanticRoleLabeling                                               =>
+      case DecaTask.SemanticRoleLabeling =>
+        _dataFlows ++= SemanticRoleLabeling.dataFlows
+        _dataFlows ++= Seq(
+          SemanticRoleLabeling.workingDirectory.dependsOn(workingDirectory).implBy(_.resolve("semantic_role_labeling")),
+          prepareAllData ++= SemanticRoleLabeling.prepareAllData
+        )
       case DecaTask.SentimentAnalysis                                                  =>
       case DecaTask.Summarization                                                      =>
       case DecaTask.MachineTranslation(sourceLanguage: String, targetLanguage: String) =>
@@ -582,6 +587,64 @@ object DataLoader {
               ).foreach(l => writer.println(l.toJsonl))
             }
           )
+        }),
+    )
+  }
+
+  object SemanticRoleLabeling extends BaseDataLoader {
+    private[decanlp] def clean(line: String): String = {
+      line
+        .replaceAll(" ([\\.,;!?:}%]|'ll|n't|'s|'m|'d|'re)", "$1")
+        .replaceAll("([\\($]) ", "$1")
+        .replaceAll(" ([-]) ", "$1")
+    }
+
+    private[decanlp] def parseQASRL(file: File): Seq[QuestionAnswerContext] = {
+      val examples = ListBuffer.empty[QuestionAnswerContext]
+      var context: Option[String] = None
+      Source
+        .fromFile(file)
+        .getLines()
+        .foreach(line => {
+          if (line.isEmpty) {
+            context = None
+          } else if (line.startsWith("WIKI1")) {
+            // ignore head line
+          } else if (context.isEmpty) {
+            context = Some(clean(line))
+          } else if (line.matches("^\\d+\\t\\D+\\t\\d+$")) {
+            // ignore token line
+          } else {
+            val Array(rawQuestion, rawAnswers) = line.split("\t\\?\t").take(2)
+            val question = clean(rawQuestion.replaceAll("_", "").replaceAll("\\s+", " ")).replaceAll("\\s$", "?")
+            val answer = rawAnswers.split("###").head
+            examples += QuestionAnswerContext(question, answer, context.get)
+          }
+        })
+      examples
+    }
+
+    override def extraDataFlows: Seq[DataFlow[_]] = Seq(
+      trainJsonl
+        .dependsOn(workingDirectory, DataDownload.SemanticRoleLabeling.qasrlTrainData)
+        .implBy((workingDirectory, qasrl) => {
+          Utils.writeToFile(workingDirectory.resolve("train.jsonl").toFile, writer => {
+            parseQASRL(qasrl).foreach(l => writer.println(l.toJsonl))
+          })
+        }),
+      validationJsonl
+        .dependsOn(workingDirectory, DataDownload.SemanticRoleLabeling.qasrlDevData)
+        .implBy((workingDirectory, qasrl) => {
+          Utils.writeToFile(workingDirectory.resolve("validation.jsonl").toFile, writer => {
+            parseQASRL(qasrl).foreach(l => writer.println(l.toJsonl))
+          })
+        }),
+      testJsonl
+        .dependsOn(workingDirectory, DataDownload.SemanticRoleLabeling.qasrlTestData)
+        .implBy((workingDirectory, qasrl) => {
+          Utils.writeToFile(workingDirectory.resolve("test.jsonl").toFile, writer => {
+            parseQASRL(qasrl).foreach(l => writer.println(l.toJsonl))
+          })
         }),
     )
   }

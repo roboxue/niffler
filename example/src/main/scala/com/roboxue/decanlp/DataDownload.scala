@@ -205,24 +205,24 @@ object DataDownload {
   }
 
   object SemanticRoleLabeling extends DataDownloader {
-    val trainData: Token[File] = Token("Wikipedia QA-SRL dataset train data")
-    val devData: Token[File] = Token("Wikipedia QA-SRL dataset dev data")
-    val testData: Token[File] = Token("Wikipedia QA-SRL dataset test data")
+    val qasrlTrainData: Token[File] = Token("Wikipedia QA-SRL dataset train data")
+    val qasrlDevData: Token[File] = Token("Wikipedia QA-SRL dataset dev data")
+    val qasrlTestData: Token[File] = Token("Wikipedia QA-SRL dataset test data")
     override def extraDataFlows: Seq[DataFlow[_]] = Seq(
-      trainData
+      qasrlTrainData
         .dependsOn(dataPath)
         .implBy(
           Utils
             .downloadOneFile("https://dada.cs.washington.edu/qasrl/data/wiki1.train.qa", "qasrl_srl_train.qa")
         ),
-      testData
+      qasrlTestData
         .dependsOn(dataPath)
         .implBy(Utils.downloadOneFile("https://dada.cs.washington.edu/qasrl/data/wiki1.test.qa", "qasrl_srl_test.qa")),
-      devData
+      qasrlDevData
         .dependsOn(dataPath)
         .implBy(Utils.downloadOneFile("https://dada.cs.washington.edu/qasrl/data/wiki1.dev.qa", "qasrl_srl_dev.qa")),
       downloadData
-        .dependsOn(trainData, devData, testData)
+        .dependsOn(qasrlTrainData, qasrlDevData, qasrlTestData)
         .implBy((train, dev, test) => {
           Seq(train, dev, test)
         })
