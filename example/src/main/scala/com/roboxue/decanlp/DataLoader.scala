@@ -24,48 +24,31 @@ class DataLoader(decaTasks: Seq[DecaTask]) extends Niffler {
     val _dataFlows = ListBuffer[DataFlow[_]]()
     val dynamicTokens = ListBuffer[Token[DataLoader.WordCount]]()
 
+    def addDataLoader(loader: BaseDataLoader, relativePath: String): Unit = {
+      _dataFlows ++= loader.dataFlows
+      _dataFlows ++= Seq(
+        loader.workingDirectory.dependsOn(workingDirectory).implBy(_.resolve(relativePath)),
+        prepareAllData ++= loader.prepareAllData
+      )
+    }
+
     decaTasks.foreach({
       case DecaTask.CommonsenseReasoning =>
-        _dataFlows ++= CommonsenseReasoning.dataFlows
-        _dataFlows ++= Seq(
-          CommonsenseReasoning.workingDirectory.dependsOn(workingDirectory).implBy(_.resolve("commonsense_reasoning")),
-          prepareAllData ++= CommonsenseReasoning.prepareAllData
-        )
+        addDataLoader(CommonsenseReasoning, "commonsense_reasoning")
       case DecaTask.GoalOrientedDialogue =>
-        _dataFlows ++= GoalOrientedDialogue.dataFlows
-        _dataFlows ++= Seq(
-          GoalOrientedDialogue.workingDirectory.dependsOn(workingDirectory).implBy(_.resolve("goal_oriented_dialogue")),
-          prepareAllData ++= GoalOrientedDialogue.prepareAllData
-        )
+        addDataLoader(GoalOrientedDialogue, "goal_oriented_dialogue")
       case DecaTask.NamedEntityRecognition =>
       // Not supported
       case DecaTask.NaturalLanguageInference =>
-        _dataFlows ++= NaturalLanguageInference.dataFlows
-        _dataFlows ++= Seq(
-          NaturalLanguageInference.workingDirectory
-            .dependsOn(workingDirectory)
-            .implBy(_.resolve("natural_language_inference")),
-          prepareAllData ++= NaturalLanguageInference.prepareAllData
-        )
+        addDataLoader(NaturalLanguageInference, "natural_language_inference")
       case DecaTask.QuestionAnswering =>
-        _dataFlows ++= QuestionAnswering.dataFlows
-        _dataFlows ++= Seq(
-          QuestionAnswering.workingDirectory.dependsOn(workingDirectory).implBy(_.resolve("question_answering")),
-          prepareAllData ++= QuestionAnswering.prepareAllData
-        )
+        addDataLoader(QuestionAnswering, "question_answering")
       case DecaTask.SemanticParsing =>
-        _dataFlows ++= SemanticParsing.dataFlows
-        _dataFlows ++= Seq(
-          SemanticParsing.workingDirectory.dependsOn(workingDirectory).implBy(_.resolve("semantic_parsing")),
-          prepareAllData ++= SemanticParsing.prepareAllData
-        )
+        addDataLoader(SemanticParsing, "semantic_parsing")
       case DecaTask.SemanticRoleLabeling =>
-        _dataFlows ++= SemanticRoleLabeling.dataFlows
-        _dataFlows ++= Seq(
-          SemanticRoleLabeling.workingDirectory.dependsOn(workingDirectory).implBy(_.resolve("semantic_role_labeling")),
-          prepareAllData ++= SemanticRoleLabeling.prepareAllData
-        )
-      case DecaTask.SentimentAnalysis                                                  =>
+        addDataLoader(SemanticRoleLabeling, "semantic_role_labeling")
+      case DecaTask.SentimentAnalysis =>
+        addDataLoader(SentimentAnalysis, "sentiment_analysis")
       case DecaTask.Summarization                                                      =>
       case DecaTask.MachineTranslation(sourceLanguage: String, targetLanguage: String) =>
     })
@@ -645,6 +628,80 @@ object DataLoader {
           Utils.writeToFile(workingDirectory.resolve("test.jsonl").toFile, writer => {
             parseQASRL(qasrl).foreach(l => writer.println(l.toJsonl))
           })
+        }),
+    )
+  }
+
+  object SentimentAnalysis extends BaseDataLoader {
+    private[decanlp] val SENTIMENT_QUESTION: String = "Is this review negative or positive?".intern()
+    private[decanlp] val SENTIMENT_NEGATIVE: String = "negative".intern()
+    private[decanlp] val SENTIMENT_POSITIVE: String = "positive".intern()
+
+    private[decanlp] def parseImdb(folderPath: Path): Seq[QuestionAnswerContext] = {
+      val examples = ListBuffer.empty[QuestionAnswerContext]
+      for ((subFolder, answer) <- Seq("neg" -> SENTIMENT_NEGATIVE, "pos" -> SENTIMENT_POSITIVE)) {
+        for (f <- folderPath.resolve(subFolder).toFile.listFiles(_.getName.endsWith(".txt"))) {
+          val context = Source.fromFile(f).getLines().next().replaceAll("<br />", " ")
+          examples += QuestionAnswerContext(SENTIMENT_QUESTION, answer, context)
+        }
+      }
+      examples
+    }
+
+    private[decanlp] def parseTreeBank(file: File): Seq[QuestionAnswerContext] = {
+      Source
+        .fromFile(file)
+        .getLines()
+        .drop(1)
+        .map(line => {
+          val (flag, rawContext) = line.splitAt(1)
+          val answer = flag match {
+            case "0" => SENTIMENT_NEGATIVE
+            case "1" => SENTIMENT_POSITIVE
+          }
+          val context = rawContext.drop(1).replaceAll("^\"", "").replaceAll("\"$", "")
+          QuestionAnswerContext(SENTIMENT_QUESTION, answer, context)
+        })
+        .toSeq
+    }
+
+    override def extraDataFlows: Seq[DataFlow[_]] = Seq(
+      trainJsonl
+        .dependsOn(
+          workingDirectory,
+          DataDownload.SentimentAnalysis.imdbReviewData,
+          DataDownload.SentimentAnalysis.treeBankSubsetTrainData
+        )
+        .implBy((dir, imdb, treeBank) => {
+          Utils.writeToFile(
+            dir.resolve("train.jsonl").toFile,
+            writer => {
+              parseImdb(imdb.toPath.resolve("train")).foreach(l => writer.println(l.toJsonl))
+              parseTreeBank(treeBank).foreach(l => writer.println(l.toJsonl))
+            }
+          )
+        }),
+      validationJsonl
+        .dependsOn(workingDirectory, DataDownload.SentimentAnalysis.treeBankSubsetDevData)
+        .implBy((dir, treeBank) => {
+          Utils.writeToFile(dir.resolve("validation.jsonl").toFile, writer => {
+            parseTreeBank(treeBank).foreach(l => writer.println(l.toJsonl))
+          })
+        }),
+      testJsonl
+        .dependsOn(
+          workingDirectory,
+          DataDownload.SentimentAnalysis.imdbReviewData,
+          DataDownload.SentimentAnalysis.treeBankSubsetTrainData
+        )
+        .implBy((dir, imdb, treeBank) => {
+          Utils.writeToFile(
+            dir.resolve("test.jsonl").toFile,
+            writer => {
+              parseImdb(imdb.toPath.resolve("test")).foreach(l => writer.println(l.toJsonl))
+              parseTreeBank(treeBank).foreach(l => writer.println(l.toJsonl))
+            }
+          )
         }),
     )
   }
