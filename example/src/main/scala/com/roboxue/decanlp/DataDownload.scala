@@ -66,7 +66,7 @@ class DataDownload(decaTasks: Seq[DecaTask]) extends Niffler {
           SentimentAnalysis.dataPath.dependsOn(dataPath).implBy(_.resolve("sentiment_analysis")),
           downloadedData ++= SentimentAnalysis.downloadData,
         )
-      case t @ DecaTask.MachineTranslation(source, target) =>
+      case t: DecaTask.MachineTranslation =>
         _dataFlows ++= MachineTranslation.dataFlows
         _dataFlows ++= Seq(
           MachineTranslation.dataPath.dependsOn(dataPath).implBy(_.resolve(s"machine_translation")),
@@ -500,7 +500,7 @@ object DataDownload {
   }
 
   object MachineTranslation extends DataDownloader {
-    val iwsltData: Token[Seq[File]] = Token("IWSLT 2016 dataset")
+    val iwsltData: Token[File] = Token("IWSLT 2016 dataset")
     val machineTranslationTasks: AccumulatorToken[Seq[DecaTask.MachineTranslation]] =
       Token.accumulator("the machine translation language pairs")
 
@@ -508,23 +508,23 @@ object DataDownload {
       iwsltData
         .dependsOn(dataPath, machineTranslationTasks)
         .implBy((path, machineTranslationTasks) => {
-          for (DecaTask.MachineTranslation(source, target) <- machineTranslationTasks) yield {
-            val output = path.resolve(s"iwslt_mt_${source}_$target").toFile
+          val folder = path.resolve(s"iwslt_mt")
+          for (DecaTask.MachineTranslation(source, _, target, _) <- machineTranslationTasks) yield {
+            val output = folder.resolve(s"${source}_$target").toFile
             if (output.exists()) {
               // log this
             } else {
               val archive = Utils.downloadOneFile(
                 s"https://wit3.fbk.eu/archive/2016-01//texts/$source/$target/$source-$target.tgz",
                 s"iwslt-mt-$source-$target.tgz"
-              )(path)
-              CompressUtils.decompressTarGz(archive, path.toFile)
-              // {source}-{target} is the root folder in iwslt data
-              path.resolve(s"$source-$target").toFile.renameTo(output)
+              )(folder)
+              CompressUtils.decompressTarGz(archive, folder.toFile)
+              // {source}-{target} is already the root folder in iwslt data, no need to rename
             }
-            output
           }
+          folder.toFile
         }),
-      downloadData.dependsOn(iwsltData).implBy(files => files)
+      downloadData.dependsOnAllOf(iwsltData).implBy(files => files)
     )
   }
 

@@ -21,7 +21,11 @@ package object decanlp {
     case object SemanticRoleLabeling extends DecaTask
     case object SentimentAnalysis extends DecaTask
     case object Summarization extends DecaTask
-    case class MachineTranslation(sourceLanguage: String, targetLanguage: String) extends DecaTask
+    case class MachineTranslation(sourceRepr: String,
+                                  sourceLanguage: String,
+                                  targetRepr: String,
+                                  targetLanguage: String)
+        extends DecaTask
   }
 
   sealed trait DecaTask

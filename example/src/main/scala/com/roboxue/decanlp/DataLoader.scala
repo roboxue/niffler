@@ -1,9 +1,8 @@
 package com.roboxue.decanlp
-import java.io.File
-import java.nio.charset.{Charset, StandardCharsets}
+import java.io.{File, FileInputStream}
 import java.nio.file.Path
-import java.util.concurrent.{ConcurrentHashMap, ConcurrentLinkedDeque}
 import java.text.Normalizer
+import java.util.concurrent.{ConcurrentHashMap, ConcurrentLinkedDeque}
 
 import com.roboxue.decanlp.DataLoader._
 import com.roboxue.niffler._
@@ -15,6 +14,7 @@ import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
 import scala.io.Source
+import scala.xml.XML
 
 class DataLoader(decaTasks: Seq[DecaTask]) extends Niffler {
   val minOccurrenceRequirement: Token[Int] = Token(
@@ -54,7 +54,9 @@ class DataLoader(decaTasks: Seq[DecaTask]) extends Niffler {
         addDataLoader(SentimentAnalysis, "sentiment_analysis")
       case DecaTask.Summarization =>
         addDataLoader(Summarization, "summarization")
-      case DecaTask.MachineTranslation(sourceLanguage: String, targetLanguage: String) =>
+      case t: DecaTask.MachineTranslation =>
+        addDataLoader(MachineTranslation, "machine_translation")
+        _dataFlows ++= Seq(MachineTranslation.machineTranslationTasks += t)
     })
 
     _dataFlows ++= Seq(
@@ -811,6 +813,111 @@ object DataLoader {
               parseStory(dailyMail.toPath.resolve("stories"), dailyMailId).foreach(l => writer.println(l.toJsonl))
             }
           )
+        }),
+    )
+  }
+
+  object MachineTranslation extends BaseDataLoader {
+    val machineTranslationTasks: AccumulatorToken[Seq[DecaTask.MachineTranslation]] =
+      Token.accumulator("the machine translation language pairs")
+
+    def parseIwsltTagFile(sourceFile: File,
+                          targetFile: File,
+                          task: DecaTask.MachineTranslation): Seq[QuestionAnswerContext] = {
+      val examples = ListBuffer.empty[QuestionAnswerContext]
+      val question = s"Translate from ${task.sourceLanguage} to ${task.targetLanguage}"
+      Source
+        .fromFile(sourceFile)
+        .getLines()
+        .zip(Source.fromFile(targetFile).getLines())
+        .foreach({
+          case (sourceLine, targetLine) =>
+            if (sourceLine.matches("^(<url|<keywords|<talkid|<description|<reviewer|<translator|<title|<speaker).*$")) {
+              // skip
+            } else {
+              examples += QuestionAnswerContext(question, targetLine, sourceLine)
+            }
+        })
+      examples
+    }
+
+    def parseIwsltXmlFile(sourceFile: File,
+                          targetFile: File,
+                          task: DecaTask.MachineTranslation): Seq[QuestionAnswerContext] = {
+      val examples = ListBuffer.empty[QuestionAnswerContext]
+      val question = s"Translate from ${task.sourceLanguage} to ${task.targetLanguage}"
+      val source: Seq[String] =
+        for (seg <- XML.load(new FileInputStream(sourceFile)) \ "srcset" \ "doc" \ "seg") yield {
+          seg.text.trim
+        }
+      val target =
+        for (seg <- XML.load(new FileInputStream(targetFile)) \ "refset" \ "doc" \ "seg") yield {
+          seg.text.trim
+        }
+      source
+        .zip(target)
+        .foreach({
+          case (sourceLine, targetLine) =>
+            if (sourceLine.matches("^(<url|<keywords|<talkid|<description|<reviewer|<translator|<title|<speaker)")) {
+              // skip
+            } else {
+              examples += QuestionAnswerContext(question, targetLine, sourceLine)
+            }
+        })
+      examples
+    }
+
+    override def extraDataFlows: Seq[DataFlow[_]] = Seq(
+      trainJsonl
+        .dependsOn(workingDirectory, DataDownload.MachineTranslation.iwsltData, machineTranslationTasks)
+        .implBy((dir, iwsltData, tasks) => {
+          Utils.writeToFile(dir.resolve(s"train.jsonl").toFile, writer => {
+            for (t @ DecaTask.MachineTranslation(source, _, target, _) <- tasks) {
+              parseIwsltTagFile(
+                iwsltData.toPath.resolve(s"$source-$target").resolve(s"train.tags.$source-$target.$source").toFile,
+                iwsltData.toPath.resolve(s"$source-$target").resolve(s"train.tags.$source-$target.$target").toFile,
+                t
+              ).foreach(l => writer.println(l.toJsonl))
+            }
+          })
+        }),
+      validationJsonl
+        .dependsOn(workingDirectory, DataDownload.MachineTranslation.iwsltData, machineTranslationTasks)
+        .implBy((dir, iwsltData, tasks) => {
+          Utils.writeToFile(dir.resolve(s"validation.jsonl").toFile, writer => {
+            for (t @ DecaTask.MachineTranslation(source, _, target, _) <- tasks) {
+              parseIwsltXmlFile(
+                iwsltData.toPath
+                  .resolve(s"$source-$target")
+                  .resolve(s"IWSLT16.TED.tst2013.$source-$target.$source.xml")
+                  .toFile,
+                iwsltData.toPath
+                  .resolve(s"$source-$target")
+                  .resolve(s"IWSLT16.TED.tst2013.$source-$target.$target.xml")
+                  .toFile,
+                t
+              ).foreach(l => writer.println(l.toJsonl))
+            }
+          })
+        }),
+      testJsonl
+        .dependsOn(workingDirectory, DataDownload.MachineTranslation.iwsltData, machineTranslationTasks)
+        .implBy((dir, iwsltData, tasks) => {
+          Utils.writeToFile(dir.resolve(s"test.jsonl").toFile, writer => {
+            for (t @ DecaTask.MachineTranslation(source, _, target, _) <- tasks) {
+              parseIwsltXmlFile(
+                iwsltData.toPath
+                  .resolve(s"$source-$target")
+                  .resolve(s"IWSLT16.TED.tst2014.$source-$target.$source.xml")
+                  .toFile,
+                iwsltData.toPath
+                  .resolve(s"$source-$target")
+                  .resolve(s"IWSLT16.TED.tst2014.$source-$target.$target.xml")
+                  .toFile,
+                t
+              ).foreach(l => writer.println(l.toJsonl))
+            }
+          })
         }),
     )
   }

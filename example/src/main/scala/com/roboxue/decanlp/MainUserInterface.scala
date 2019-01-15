@@ -20,8 +20,10 @@ object MainUserInterface {
       DecaTask.NaturalLanguageInference,
       DecaTask.NamedEntityRecognition,
       DecaTask.SentimentAnalysis,
-      DecaTask.MachineTranslation("de", "en"),
-      DecaTask.MachineTranslation("en", "de"),
+      DecaTask.MachineTranslation("de", "Germany", "en", "English"),
+      DecaTask.MachineTranslation("fr", "French", "en", "English"),
+      DecaTask.MachineTranslation("en", "English", "de", "Germany"),
+      DecaTask.MachineTranslation("en", "English", "fr", "French"),
     )
 
     val downloader: Niffler = new DataDownload(decaTasks)
