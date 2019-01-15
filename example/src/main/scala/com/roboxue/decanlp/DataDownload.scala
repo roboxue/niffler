@@ -141,7 +141,13 @@ object DataDownload {
 
   object Summarization extends DataDownloader {
     val dailyMailStoriesData: Token[File] = Token("stories from Daily Mail for summarization")
+    val dailyMailTrainId: Token[File] = Token("story ids for train in Daily Mail dataset")
+    val dailyMailValidationId: Token[File] = Token("story ids for validation in Daily Mail dataset")
+    val dailyMailTestId: Token[File] = Token("story ids for test in Daily Mail dataset")
     val cnnStoriesData: Token[File] = Token("stories from CNN for summarization")
+    val cnnTrainId: Token[File] = Token("story ids for train in CNN dataset")
+    val cnnValidationId: Token[File] = Token("story ids for validation in CNN dataset")
+    val cnnTestId: Token[File] = Token("story ids for test in CNN dataset")
 
     override def extraDataFlows: Seq[DataFlow[_]] =
       Seq(
@@ -162,6 +168,30 @@ object DataDownload {
             }
             output
           }),
+        dailyMailTrainId
+          .dependsOn(dataPath)
+          .implBy(
+            Utils.downloadOneFile(
+              "https://raw.githubusercontent.com/abisee/cnn-dailymail/master/url_lists/dailymail_wayback_training_urls.txt",
+              "dailymail_train_urls.txt"
+            )
+          ),
+        dailyMailValidationId
+          .dependsOn(dataPath)
+          .implBy(
+            Utils.downloadOneFile(
+              "https://raw.githubusercontent.com/abisee/cnn-dailymail/master/url_lists/dailymail_wayback_validation_urls.txt",
+              "dailymail_validation_urls.txt"
+            )
+          ),
+        dailyMailTestId
+          .dependsOn(dataPath)
+          .implBy(
+            Utils.downloadOneFile(
+              "https://raw.githubusercontent.com/abisee/cnn-dailymail/master/url_lists/dailymail_wayback_test_urls.txt",
+              "dailymail_test_urls.txt"
+            )
+          ),
         cnnStoriesData
           .dependsOn(dataPath)
           .implBy(path => {
@@ -179,7 +209,42 @@ object DataDownload {
             }
             output
           }),
-        downloadData.dependsOnAllOf(dailyMailStoriesData, cnnStoriesData).implBy(files => files)
+        cnnTrainId
+          .dependsOn(dataPath)
+          .implBy(
+            Utils.downloadOneFile(
+              "https://raw.githubusercontent.com/abisee/cnn-dailymail/master/url_lists/cnn_wayback_training_urls.txt",
+              "cnn_train_urls.txt"
+            )
+          ),
+        cnnValidationId
+          .dependsOn(dataPath)
+          .implBy(
+            Utils.downloadOneFile(
+              "https://raw.githubusercontent.com/abisee/cnn-dailymail/master/url_lists/cnn_wayback_validation_urls.txt",
+              "cnn_validation_urls.txt"
+            )
+          ),
+        cnnTestId
+          .dependsOn(dataPath)
+          .implBy(
+            Utils.downloadOneFile(
+              "https://raw.githubusercontent.com/abisee/cnn-dailymail/master/url_lists/cnn_wayback_test_urls.txt",
+              "cnn_test_urls.txt"
+            )
+          ),
+        downloadData
+          .dependsOnAllOf(
+            dailyMailStoriesData,
+            dailyMailTrainId,
+            dailyMailValidationId,
+            dailyMailTestId,
+            cnnStoriesData,
+            cnnTrainId,
+            cnnValidationId,
+            cnnTestId
+          )
+          .implBy(files => files)
       )
   }
 

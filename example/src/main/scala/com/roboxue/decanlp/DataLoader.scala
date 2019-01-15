@@ -1,10 +1,13 @@
 package com.roboxue.decanlp
 import java.io.File
+import java.nio.charset.{Charset, StandardCharsets}
 import java.nio.file.Path
-import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.{ConcurrentHashMap, ConcurrentLinkedDeque}
+import java.text.Normalizer
 
 import com.roboxue.decanlp.DataLoader._
 import com.roboxue.niffler._
+import org.apache.commons.codec.digest.DigestUtils
 import org.json4s.jackson.JsonMethods._
 import org.json4s.{DefaultFormats, _}
 
@@ -49,7 +52,8 @@ class DataLoader(decaTasks: Seq[DecaTask]) extends Niffler {
         addDataLoader(SemanticRoleLabeling, "semantic_role_labeling")
       case DecaTask.SentimentAnalysis =>
         addDataLoader(SentimentAnalysis, "sentiment_analysis")
-      case DecaTask.Summarization                                                      =>
+      case DecaTask.Summarization =>
+        addDataLoader(Summarization, "summarization")
       case DecaTask.MachineTranslation(sourceLanguage: String, targetLanguage: String) =>
     })
 
@@ -700,6 +704,111 @@ object DataLoader {
             writer => {
               parseImdb(imdb.toPath.resolve("test")).foreach(l => writer.println(l.toJsonl))
               parseTreeBank(treeBank).foreach(l => writer.println(l.toJsonl))
+            }
+          )
+        }),
+    )
+  }
+
+  object Summarization extends BaseDataLoader {
+    private[decanlp] val endTokens: Set[String] = Set(".", "!", "?", "...", "'", "`", "\"", "\u2019", "\u201d", ")")
+    private[decanlp] val SUMMARIZATION_QUESTION = "What is the summary?".intern()
+    private[decanlp] def addPeriod(line: String): String = {
+      if (line.matches("^.*([\\.!?'`\"\u2019\u201d\\)]|\\.\\.\\.)$")) line else line + "."
+    }
+
+    private[decanlp] def parseStory(storiesDir: Path, storyIdFile: File): Seq[QuestionAnswerContext] = {
+      val examples = new ConcurrentLinkedDeque[QuestionAnswerContext]
+      Source
+        .fromFile(storyIdFile)
+        .getLines()
+        .toSeq
+        .par
+        .foreach(url => {
+          val sha = DigestUtils.sha1Hex(url.trim())
+          val storyFile = storiesDir.resolve(s"$sha.story").toFile
+          if (storyFile.exists()) {
+            val context = ListBuffer.empty[String]
+            val answer = ListBuffer.empty[String]
+            var highlightStarted = false
+            Source
+              .fromFile(storyFile)
+              .getLines()
+              .foreach(line => {
+                if (line.trim == "@highlight") {
+                  highlightStarted = true
+                } else if (line.trim.nonEmpty) {
+                  if (highlightStarted) {
+                    answer += addPeriod(line.trim)
+                  } else {
+                    context += addPeriod(line.trim)
+                  }
+                }
+              })
+
+            examples.add(
+              QuestionAnswerContext(
+                SUMMARIZATION_QUESTION,
+                Normalizer.normalize(answer.mkString(" "), Normalizer.Form.NFKC),
+                Normalizer.normalize(context.mkString(" "), Normalizer.Form.NFKC)
+              )
+            )
+          } else {
+            // log it
+          }
+        })
+      examples.asScala.toSeq
+    }
+
+    override def extraDataFlows: Seq[DataFlow[_]] = Seq(
+      trainJsonl
+        .dependsOn(
+          workingDirectory,
+          DataDownload.Summarization.cnnStoriesData,
+          DataDownload.Summarization.cnnTrainId,
+          DataDownload.Summarization.dailyMailStoriesData,
+          DataDownload.Summarization.dailyMailTrainId
+        )
+        .implBy((dir, cnn, cnnId, dailyMail, dailyMailId) => {
+          Utils.writeToFile(
+            dir.resolve("train.jsonl").toFile,
+            writer => {
+              parseStory(cnn.toPath.resolve("stories"), cnnId).foreach(l => writer.println(l.toJsonl))
+              parseStory(dailyMail.toPath.resolve("stories"), dailyMailId).foreach(l => writer.println(l.toJsonl))
+            }
+          )
+        }),
+      validationJsonl
+        .dependsOn(
+          workingDirectory,
+          DataDownload.Summarization.cnnStoriesData,
+          DataDownload.Summarization.cnnValidationId,
+          DataDownload.Summarization.dailyMailStoriesData,
+          DataDownload.Summarization.dailyMailValidationId
+        )
+        .implBy((dir, cnn, cnnId, dailyMail, dailyMailId) => {
+          Utils.writeToFile(
+            dir.resolve("validation.jsonl").toFile,
+            writer => {
+              parseStory(cnn.toPath.resolve("stories"), cnnId).foreach(l => writer.println(l.toJsonl))
+              parseStory(dailyMail.toPath.resolve("stories"), dailyMailId).foreach(l => writer.println(l.toJsonl))
+            }
+          )
+        }),
+      testJsonl
+        .dependsOn(
+          workingDirectory,
+          DataDownload.Summarization.cnnStoriesData,
+          DataDownload.Summarization.cnnTestId,
+          DataDownload.Summarization.dailyMailStoriesData,
+          DataDownload.Summarization.dailyMailTestId
+        )
+        .implBy((dir, cnn, cnnId, dailyMail, dailyMailId) => {
+          Utils.writeToFile(
+            dir.resolve("test.jsonl").toFile,
+            writer => {
+              parseStory(cnn.toPath.resolve("stories"), cnnId).foreach(l => writer.println(l.toJsonl))
+              parseStory(dailyMail.toPath.resolve("stories"), dailyMailId).foreach(l => writer.println(l.toJsonl))
             }
           )
         }),

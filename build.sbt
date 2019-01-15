@@ -63,6 +63,7 @@ lazy val example = nifflerProject("example", enablePublish = false)
       "commons-io" % "commons-io" % "2.6",
       "org.apache.commons" % "commons-compress" % "1.18",
       "com.lihaoyi" %% "requests" % "0.1.4",
+      "commons-codec" % "commons-codec" % "1.11",
     )
   )
 
