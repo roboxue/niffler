@@ -3,6 +3,7 @@ package com.roboxue.niffler.execution
 import java.time.format.DateTimeFormatter
 import java.time.{Instant, ZoneOffset}
 import java.util.concurrent.TimeUnit
+import java.util.function.Consumer
 
 import com.roboxue.niffler.Token
 
@@ -40,6 +41,12 @@ case class ExecutionLog(executionId: Int, logLines: Iterable[ExecutionLogEntry])
         )
       case l: LogEnded =>
         logger(s"${l.nanoTime} LogEnded for execution $executionId")
+    })
+  }
+
+  def printFlowChartJava(logger: Consumer[String]): Unit = {
+    printFlowChart(str => {
+      logger.accept(str)
     })
   }
 

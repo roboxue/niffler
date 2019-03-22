@@ -64,6 +64,7 @@ lazy val example = nifflerProject("example", enablePublish = false)
       "org.apache.commons" % "commons-compress" % "1.18",
       "com.lihaoyi" %% "requests" % "0.1.4",
       "commons-codec" % "commons-codec" % "1.11",
+      "com.amazonaws" % "aws-java-sdk-s3" % "1.11.523",
     )
   )
 
