@@ -47,7 +47,7 @@ class Token[T: TypeTag](val name: String, val uuid: String, val codeName: String
 }
 
 object Token {
-  implicit def tokenIsFormula0[T](token: Token[T]): Formula0[T] = Formula0(token)
+//  implicit def tokenIsFormula0[T](token: Token[T]): Formula0[T] = Formula0(token)
 
   private def stackTraceElement(implicit _className: sourcecode.Enclosing,
                                 _fileName: sourcecode.File,
@@ -152,6 +152,22 @@ class AccumulatorToken[T: TypeTag](name: String, uuid: String, codeName: String,
 
 trait TokenSyntax[T] {
   this: Token[T] =>
+
+  /**
+    * Java friendly
+    * @param value
+    * @return
+    */
+  def initializedTo(value: T): DataFlow[T] = new SyncDataFlow[T](Seq.empty, this, _ => value)
+
+  def :=(impl: => T): DataFlow[T] = implBy(impl)
+
+  def implBy(impl: => T): DataFlow[T] = new SyncDataFlow[T](Seq.empty, this, _ => impl)
+
+  def :=>(futureImpl: => Future[T]): AsyncDataFlow[T] = implByFuture(futureImpl)
+
+  def implByFuture(futureImpl: => Future[T]): AsyncDataFlow[T] =
+    new AsyncDataFlow[T](Seq.empty, this, _ => futureImpl)
 
   def dependsOnAllOf[Z](tokens: Token[Z]*): WildcardFormula[T, Z] = WildcardFormula(tokens, this)
 

@@ -2,11 +2,7 @@ package com.roboxue.niffler.execution.actor
 
 import akka.actor.{Actor, ActorLogging, PoisonPill}
 import com.roboxue.niffler.execution._
-import com.roboxue.niffler.execution.actor.EvaluationCommander.{
-  EvaluationCancelled,
-  EvaluationFailure,
-  EvaluationSuccess
-}
+import com.roboxue.niffler.execution.actor.EvaluationCommander.{EvaluationCancelled, EvaluationFailure, EvaluationSuccess}
 import com.roboxue.niffler.{MutableExecutionState, Token}
 import org.jgrapht.Graphs
 import org.jgrapht.graph.{DefaultEdge, DirectedAcyclicGraph}
@@ -14,7 +10,7 @@ import org.jgrapht.graph.{DefaultEdge, DirectedAcyclicGraph}
 import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.{ExecutionContext, ExecutionContextExecutor, Future}
 import scala.util.{Failure, Success}
 
 /**
@@ -49,20 +45,20 @@ class EvaluationCommander[T](execution: AsyncExecution[T]) extends Actor with Ac
       unseenCache ++= dep
       val met = dep.intersect(state.keySet)
       val unmet = dep.diff(state.keySet)
-      logIt(TokenAnalyzed(token, unmet, met))
+      logIt(TokenAnalyzed(execution.executionId, token, unmet, met))
       if (unmet.isEmpty) {
-        logIt(TokenStartedEvaluation(token))
+        logIt(TokenStartedEvaluation(execution.executionId, token))
         evaluating += token
         trigger(token)
       } else {
         for (blocker <- unmet) {
           blockers(blocker) = blockers.getOrElse(blocker, Set.empty) + token
         }
-        logIt(TokenBacklogged(token, unmet))
+        logIt(TokenBacklogged(execution.executionId, token, unmet))
       }
     } else {
       val ex = NifflerNoDataFlowDefinedException(token)
-      logIt(TokenFailedEvaluation(token, ex))
+      logIt(TokenFailedEvaluation(execution.executionId, token, ex))
       enterFailureProtocol(token, ex)
     }
     unseen.enqueue(unseenCache.toSet.diff(seen).toSeq: _*)
@@ -71,9 +67,9 @@ class EvaluationCommander[T](execution: AsyncExecution[T]) extends Actor with Ac
   def enterFailureProtocol(cause: Token[_], ex: Throwable): Unit = {
     failed = true
     for (token <- evaluating) {
-      logIt(TokenCancelledEvaluation(token, Some(cause)))
+      logIt(TokenCancelledEvaluation(execution.executionId, token, Some(cause)))
     }
-    logIt(LogEnded())
+    logIt(LogEnded(execution.executionId))
     self ! PoisonPill
     execution.failure(NifflerDataFlowExecutionException(cause, ex))
   }
@@ -81,9 +77,9 @@ class EvaluationCommander[T](execution: AsyncExecution[T]) extends Actor with Ac
   def enterCancellationProtocol(): Unit = {
     failed = true
     for (token <- evaluating) {
-      logIt(TokenCancelledEvaluation(token, None))
+      logIt(TokenCancelledEvaluation(execution.executionId, token, None))
     }
-    logIt(LogEnded())
+    logIt(LogEnded(execution.executionId))
     self ! PoisonPill
     execution.failure(NifflerCancelledException)
   }
@@ -92,7 +88,7 @@ class EvaluationCommander[T](execution: AsyncExecution[T]) extends Actor with Ac
     execution.success(
       ExecutionResult(result, state.seal, ExecutionLog(execution.executionId, logs), execution.executionId)
     )
-    logIt(LogEnded())
+    logIt(LogEnded(execution.executionId))
     self ! PoisonPill
   }
 
@@ -100,9 +96,9 @@ class EvaluationCommander[T](execution: AsyncExecution[T]) extends Actor with Ac
     val dep = Graphs.predecessorListOf(dag, token).asScala.toSet
     val met = dep.intersect(state.keySet)
     val unmet = dep.diff(state.keySet)
-    logIt(TokenRevisited(token, blockerRemoved, unmet, met))
+    logIt(TokenRevisited(execution.executionId, token, blockerRemoved, unmet, met))
     if (unmet.isEmpty) {
-      logIt(TokenStartedEvaluation(token))
+      logIt(TokenStartedEvaluation(execution.executionId, token))
       evaluating += token
       trigger(token)
     }
@@ -123,7 +119,7 @@ class EvaluationCommander[T](execution: AsyncExecution[T]) extends Actor with Ac
         flows
           .drop(1)
           .foldLeft[Future[_]](flows.head.evaluate(state)(ExecutionContext.global))({ (f, flow) =>
-            implicit val ec = ExecutionContext.global
+            implicit val ec: ExecutionContextExecutor = ExecutionContext.global
             f.flatMap(r => {
               state.put(token.asInstanceOf[Token[token.T0]], r.asInstanceOf[token.T0])
               flow.evaluate(state)
@@ -137,14 +133,14 @@ class EvaluationCommander[T](execution: AsyncExecution[T]) extends Actor with Ac
           })(context.dispatcher)
       case None =>
         val ex = NifflerNoDataFlowDefinedException(token)
-        logIt(TokenFailedEvaluation(token, ex))
+        logIt(TokenFailedEvaluation(execution.executionId, token, ex))
         enterFailureProtocol(token, ex)
     }
   }
 
   override def receive: Receive = {
     case EvaluationSuccess(token, result) =>
-      logIt(TokenEndedEvaluation(token))
+      logIt(TokenEndedEvaluation(execution.executionId, token))
       evaluating -= token
       state.put(token.asInstanceOf[Token[token.T0]], result.asInstanceOf[token.T0])
       if (token == execution.token) {
@@ -156,7 +152,7 @@ class EvaluationCommander[T](execution: AsyncExecution[T]) extends Actor with Ac
         }
       }
     case EvaluationFailure(token, ex) =>
-      logIt(TokenFailedEvaluation(token, ex))
+      logIt(TokenFailedEvaluation(execution.executionId, token, ex))
       evaluating -= token
       enterFailureProtocol(token, ex)
     case EvaluationCancelled =>
@@ -164,6 +160,20 @@ class EvaluationCommander[T](execution: AsyncExecution[T]) extends Actor with Ac
   }
 
   def logIt(entry: ExecutionLogEntry): Unit = {
+    execution.logger match {
+      case Some(l) =>
+        entry match {
+          case e: LogStarted => l.onLogStarted(e)
+          case e: TokenAnalyzed => l.onTokenAnalyzed(e)
+          case e: TokenBacklogged => l.onTokenBacklogged(e)
+          case e: TokenStartedEvaluation => l.onTokenStartedEvaluation(e)
+          case e: TokenEndedEvaluation => l.onTokenEndedEvaluation(e)
+          case e: TokenRevisited => l.onTokenRevisited(e)
+          case e: TokenFailedEvaluation => l.onTokenFailedEvaluation(e)
+          case e: TokenCancelledEvaluation => l.onTokenCancelledEvaluation(e)
+          case e: LogEnded => l.onLogEnded(e)
+        }
+    }
     logs += entry
   }
 }

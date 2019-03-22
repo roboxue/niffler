@@ -1,6 +1,6 @@
 package com.roboxue.niffler
 
-import com.roboxue.niffler.execution.AsyncExecution
+import com.roboxue.niffler.execution.{AsyncExecution, ExecutionLogger}
 import org.jgrapht.Graphs
 import org.jgrapht.graph.{DefaultEdge, DirectedAcyclicGraph}
 import org.jgrapht.traverse.TopologicalOrderIterator
@@ -38,7 +38,8 @@ class Logic(flows: Iterable[DataFlow[_]]) {
 
   def diverge(extraFlow: Iterable[DataFlow[_]]): Logic = new Logic(flows ++ extraFlow)
 
-  def asyncRun[T](token: Token[T], extraFlow: Iterable[DataFlow[_]] = Iterable.empty)(
+  def asyncRun[T](token: Token[T], extraFlow: Iterable[DataFlow[_]] = Iterable.empty,
+                  logger: Option[ExecutionLogger] = None)(
     implicit sc: ExecutionStateTracker = new ExecutionStateTracker
   ): AsyncExecution[T] = {
     AsyncExecution(
@@ -46,6 +47,7 @@ class Logic(flows: Iterable[DataFlow[_]]) {
       sc.getExecutionState,
       token,
       AsyncExecution.executionId.incrementAndGet(),
+      logger,
       Some(sc)
     )
   }

@@ -15,7 +15,7 @@ object JavaExampleTokens extends Niffler {
   val datasetId: Token[String] = Token("datasetId")
   val changeSetVersion: Token[Integer] = Token("number of change sets to download")
   val s3BucketName: Token[String] = Token("s3 bucket name that holds the data")
-  val s3Region: Token[String] = Token("the region for s3 bucket")
+//  val s3Region: Token[String] = Token("the region for s3 bucket")
   val awsCredentialProvider: Token[AWSCredentialsProvider] = Token("aws credentials provider")
   val localTempDownloadFolder: Token[Path] = Token("working directory for download")
   val localTempOutputFolder: Token[Path] = Token("working directory for output")
@@ -33,7 +33,7 @@ object JavaExampleTokens extends Niffler {
       .dependsOn(datasetId)
       .implBy(JavaExample.getS3Path),
     s3Client
-      .dependsOn(s3Region, awsCredentialProvider)
+      .dependsOn(awsCredentialProvider)
       .implBy(JavaExample.getS3Client),
     awsCredentialProvider
       .implBy(JavaExample.getCredentialProvider),

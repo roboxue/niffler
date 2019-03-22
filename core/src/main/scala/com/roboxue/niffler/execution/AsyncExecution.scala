@@ -17,6 +17,7 @@ case class AsyncExecution[T] private (logic: Logic,
                                       initialState: ExecutionStateLike,
                                       token: Token[T],
                                       executionId: Int,
+                                      logger: Option[ExecutionLogger],
                                       stateTracker: Option[ExecutionStateTracker] = None) {
   private val resultPromise: Promise[ExecutionResult[T]] = Promise()
   private var cancelled: Boolean = false

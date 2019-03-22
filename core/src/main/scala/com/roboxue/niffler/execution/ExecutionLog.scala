@@ -19,6 +19,12 @@ case class ExecutionLog(executionId: Int, logLines: Iterable[ExecutionLogEntry])
   require(logLines.head.isInstanceOf[LogStarted])
   private val started = logLines.head.asInstanceOf[LogStarted]
 
+  def printWaterfallJava(logger: Consumer[String]): Unit = {
+    printWaterfall(str => {
+      logger.accept(str)
+    })
+  }
+
   def printWaterfall(logger: String => Unit): Unit = {
     logLines.foreach({
       case l: LogStarted =>
