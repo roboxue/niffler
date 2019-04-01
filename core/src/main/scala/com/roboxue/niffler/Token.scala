@@ -3,8 +3,8 @@ package com.roboxue.niffler
 import java.nio.file.Paths
 import java.util.UUID
 
-import com.google.common.collect.ImmutableList
 import com.roboxue.niffler.Append.{Value, Values}
+import com.roboxue.niffler.scalaDSL.WildcardFormula
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.reflect.runtime.universe.TypeTag
@@ -172,21 +172,21 @@ trait TokenSyntax[T] {
 
   def dependsOnAllOf[Z](tokens: Token[Z]*): WildcardFormula[T, Z] = WildcardFormula(tokens, this)
 
-  def dependsOn[T1](t1: Token[T1]): Formula1[T1, T] = Formula1[T1, T](t1, this)
+  def dependsOn[T1](t1: Token[T1]): scalaDSL.Formula1[T1, T] = scalaDSL.Formula1[T1, T](t1, this)
   def dependsOnJ[T1](t1: Token[T1]): javaDSL.Formula1[T1, T] = new javaDSL.Formula1[T1, T](t1, this)
 
-  def dependsOn[T1, T2](t1: Token[T1], t2: Token[T2]): Formula2[T1, T2, T] = Formula2(t1, t2, this)
+  def dependsOn[T1, T2](t1: Token[T1], t2: Token[T2]): scalaDSL.Formula2[T1, T2, T] = scalaDSL.Formula2(t1, t2, this)
   def dependsOnJ[T1, T2](t1: Token[T1], t2: Token[T2]): javaDSL.Formula2[T1, T2, T] = new javaDSL.Formula2(t1, t2, this)
 
-  def dependsOn[T1, T2, T3](t1: Token[T1], t2: Token[T2], t3: Token[T3]): Formula3[T1, T2, T3, T] =
-    Formula3(t1, t2, t3, this)
+  def dependsOn[T1, T2, T3](t1: Token[T1], t2: Token[T2], t3: Token[T3]): scalaDSL.Formula3[T1, T2, T3, T] =
+    scalaDSL.Formula3(t1, t2, t3, this)
   def dependsOnJ[T1, T2, T3](t1: Token[T1], t2: Token[T2], t3: Token[T3]): javaDSL.Formula3[T1, T2, T3, T] =
     new javaDSL.Formula3(t1, t2, t3, this)
 
   def dependsOn[T1, T2, T3, T4](t1: Token[T1],
                                 t2: Token[T2],
                                 t3: Token[T3],
-                                t4: Token[T4]): Formula4[T1, T2, T3, T4, T] = Formula4(t1, t2, t3, t4, this)
+                                t4: Token[T4]): scalaDSL.Formula4[T1, T2, T3, T4, T] = scalaDSL.Formula4(t1, t2, t3, t4, this)
   def dependsOnJ[T1, T2, T3, T4](t1: Token[T1],
                                 t2: Token[T2],
                                 t3: Token[T3],
@@ -196,7 +196,7 @@ trait TokenSyntax[T] {
                                     t2: Token[T2],
                                     t3: Token[T3],
                                     t4: Token[T4],
-                                    t5: Token[T5]): Formula5[T1, T2, T3, T4, T5, T] = Formula5(t1, t2, t3, t4, t5, this)
+                                    t5: Token[T5]): scalaDSL.Formula5[T1, T2, T3, T4, T5, T] = scalaDSL.Formula5(t1, t2, t3, t4, t5, this)
   def dependsOnJ[T1, T2, T3, T4, T5](t1: Token[T1],
                                     t2: Token[T2],
                                     t3: Token[T3],
@@ -204,8 +204,4 @@ trait TokenSyntax[T] {
                                     t5: Token[T5]): javaDSL.Formula5[T1, T2, T3, T4, T5, T] = new javaDSL.Formula5(t1, t2, t3, t4, t5, this)
 
   def copyFrom(anotherToken: Token[T]): DataFlow[T] = dependsOn(anotherToken).implBy(r => r)
-
-  def flowFrom(dataSource: DataSource[T]): DataFlow[T] = dataSource.writesTo(this)
-
-  def <~(dataSource: DataSource[T]): DataFlow[T] = dataSource.writesTo(this)
 }
