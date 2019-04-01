@@ -14,7 +14,7 @@ scalaModuleInfo := scalaModuleInfo.value map {
   _.withOverrideScalaVersion(true)
 }
 
-lazy val niffler = project.in(file(".")).aggregate(core, example, monitoring)
+lazy val niffler = project.in(file(".")).aggregate(core, example)
 
 lazy val core = nifflerProject("core", enablePublish = true)
   .settings(
@@ -39,23 +39,8 @@ lazy val core = nifflerProject("core", enablePublish = true)
     parallelExecution in Test := false
   )
 
-lazy val monitoring = nifflerProject("monitoring", enablePublish = true)
-  .dependsOn(core)
-  .enablePlugins(SbtTwirl)
-  .settings(
-    TwirlKeys.templateImports ++= Seq("com.roboxue.niffler.monitoring._"),
-    libraryDependencies ++= Seq(
-      "io.circe" %% "circe-generic" % circe,
-      "io.circe" %% "circe-literal" % circe,
-      "org.http4s" %% "http4s-dsl" % http4s,
-      "org.http4s" %% "http4s-twirl" % http4s,
-      "org.http4s" %% "http4s-circe" % http4s,
-      "org.http4s" %% "http4s-blaze-server" % http4s
-    )
-  )
-
 lazy val example = nifflerProject("example", enablePublish = false)
-  .dependsOn(core, monitoring)
+  .dependsOn(core)
   .settings(
     libraryDependencies ++= Seq(
       "org.json4s" %% "json4s-core" % json4s,
