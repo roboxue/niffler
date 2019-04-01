@@ -18,14 +18,21 @@ lazy val niffler = project.in(file(".")).aggregate(core, example)
 
 lazy val core = nifflerProject("core", enablePublish = true)
   .settings(
-    sourceGenerators in Compile += {
-      CodeGenTokenSyntax.generateCode
-    },
-    CodeGenTokenSyntax.generateCode := {
-      sLog.value.info("Start code generation")
-      val f1 = CodeGenTokenSyntax.saveToFile(sourceManaged.value / "main")
+    sourceGenerators in Compile ++= Seq(
+      CodeGenJavaDSL.generateJavaCode.taskValue,
+      CodeGenScalaDSL.generateScalaCode.taskValue,
+    ),
+    CodeGenScalaDSL.generateScalaCode := {
+      sLog.value.info("Start scala code generation")
+      val f1 = CodeGenScalaDSL.saveToFile(sourceManaged.value / "main")
       sLog.value.info(s"Generation complete ${f1.toURI}")
       Seq(f1)
+    },
+    CodeGenJavaDSL.generateJavaCode := {
+      sLog.value.info("Start java code generation")
+      val f1 = CodeGenJavaDSL.saveToFile(sourceManaged.value / "main")
+      sLog.value.info(s"Generation complete")
+      f1
     },
     libraryDependencies ++= Seq(
       "io.monix" %% "monix" % monix,

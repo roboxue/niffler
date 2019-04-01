@@ -10,7 +10,7 @@ import scala.collection.immutable
   * @author robert xue
   * @since 12/26/17.
   */
-object CodeGenTokenSyntax {
+object CodeGenScalaDSL {
   val FORMULA = "Formula"
   val DATA_FLOW = "DataFlow"
   val DATA_SOURCE = "DataSource"
@@ -93,7 +93,7 @@ object CodeGenTokenSyntax {
      """.stripMargin
   }
 
-  final val generateCode = taskKey[Seq[File]]("Generate boilerplate code for niffler core.")
+  final val generateScalaCode = taskKey[Seq[File]]("Generate boilerplate scala code for niffler core.")
 
   def saveToFile(srcFolder: File): File = {
     srcFolder.mkdirs()

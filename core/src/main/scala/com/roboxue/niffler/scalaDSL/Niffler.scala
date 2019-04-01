@@ -23,14 +23,6 @@ trait Niffler {
     new Logic(dataFlows).asyncRun(token, extraFlow, logger)(sc)
   }
 
-  def asyncRun[T](token: Token[T], extraFlow: java.lang.Iterable[DataFlow[_]], sc: ExecutionStateTracker, logger: Optional[ExecutionLogger]): AsyncExecution[T] = {
-    if (logger.isPresent) {
-      new Logic(dataFlows).asyncRun(token, extraFlow.asScala, Some(logger.get()))(sc)
-    } else {
-      new Logic(dataFlows).asyncRun(token, extraFlow.asScala, None)(sc)
-    }
-  }
-
   def ++(another: Niffler): Niffler = new Niffler {
     override def dataFlows: Iterable[DataFlow[_]] = {
       self.dataFlows ++ another.dataFlows

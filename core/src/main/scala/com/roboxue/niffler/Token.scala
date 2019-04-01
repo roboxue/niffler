@@ -3,6 +3,7 @@ package com.roboxue.niffler
 import java.nio.file.Paths
 import java.util.UUID
 
+import com.google.common.collect.ImmutableList
 import com.roboxue.niffler.Append.{Value, Values}
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -172,22 +173,35 @@ trait TokenSyntax[T] {
   def dependsOnAllOf[Z](tokens: Token[Z]*): WildcardFormula[T, Z] = WildcardFormula(tokens, this)
 
   def dependsOn[T1](t1: Token[T1]): Formula1[T1, T] = Formula1[T1, T](t1, this)
+  def dependsOnJ[T1](t1: Token[T1]): javaDSL.Formula1[T1, T] = new javaDSL.Formula1[T1, T](t1, this)
 
   def dependsOn[T1, T2](t1: Token[T1], t2: Token[T2]): Formula2[T1, T2, T] = Formula2(t1, t2, this)
+  def dependsOnJ[T1, T2](t1: Token[T1], t2: Token[T2]): javaDSL.Formula2[T1, T2, T] = new javaDSL.Formula2(t1, t2, this)
 
   def dependsOn[T1, T2, T3](t1: Token[T1], t2: Token[T2], t3: Token[T3]): Formula3[T1, T2, T3, T] =
     Formula3(t1, t2, t3, this)
+  def dependsOnJ[T1, T2, T3](t1: Token[T1], t2: Token[T2], t3: Token[T3]): javaDSL.Formula3[T1, T2, T3, T] =
+    new javaDSL.Formula3(t1, t2, t3, this)
 
   def dependsOn[T1, T2, T3, T4](t1: Token[T1],
                                 t2: Token[T2],
                                 t3: Token[T3],
                                 t4: Token[T4]): Formula4[T1, T2, T3, T4, T] = Formula4(t1, t2, t3, t4, this)
+  def dependsOnJ[T1, T2, T3, T4](t1: Token[T1],
+                                t2: Token[T2],
+                                t3: Token[T3],
+                                t4: Token[T4]): javaDSL.Formula4[T1, T2, T3, T4, T] = new javaDSL.Formula4(t1, t2, t3, t4, this)
 
   def dependsOn[T1, T2, T3, T4, T5](t1: Token[T1],
                                     t2: Token[T2],
                                     t3: Token[T3],
                                     t4: Token[T4],
                                     t5: Token[T5]): Formula5[T1, T2, T3, T4, T5, T] = Formula5(t1, t2, t3, t4, t5, this)
+  def dependsOnJ[T1, T2, T3, T4, T5](t1: Token[T1],
+                                    t2: Token[T2],
+                                    t3: Token[T3],
+                                    t4: Token[T4],
+                                    t5: Token[T5]): javaDSL.Formula5[T1, T2, T3, T4, T5, T] = new javaDSL.Formula5(t1, t2, t3, t4, t5, this)
 
   def copyFrom(anotherToken: Token[T]): DataFlow[T] = dependsOn(anotherToken).implBy(r => r)
 
@@ -195,45 +209,3 @@ trait TokenSyntax[T] {
 
   def <~(dataSource: DataSource[T]): DataFlow[T] = dataSource.writesTo(this)
 }
-
-//class Module private (name: String, uuid: String, codeName: String) extends Token[Logic](name, uuid, codeName) {
-//
-//  def builder: ModuleBuilder = new ModuleBuilder(this)
-//}
-//
-//class ModuleBuilder(token: Token[Logic]) {
-//  private val featureSwitches = ListBuffer[FeatureSwitch[_]]()
-//
-//  def featureSwitch[S](token: Token[S], cases: PartialFunction[S, Seq[DataFlow[_]]]): ModuleBuilder = {
-//    featureSwitches += FeatureSwitch(token, cases)
-//    this
-//  }
-//
-//  def booleanSwitch(token: Token[Boolean],
-//                    onTrue: Seq[DataFlow[_]],
-//                    onFalse: Seq[DataFlow[_]] = Seq.empty): ModuleBuilder = {
-//    val pf: PartialFunction[Boolean, Seq[DataFlow[_]]] = {
-//      case true  => onTrue
-//      case false => onFalse
-//    }
-//    featureSwitches += FeatureSwitch(token, pf)
-//    this
-//  }
-//
-//  def compile: DataFlow[Logic] = new DataFlow[Logic] {
-//    override val dependsOn: Seq[Token[_]] = featureSwitches.map(_.token).distinct
-//    override val outlet: Token[Logic] = token
-//    override def evaluate(state: ExecutionStateLike)(implicit ex: ExecutionContext): Future[Logic] = {
-//      Future {
-//        val moduleDataFlow = featureSwitches.flatMap(s => {
-//          s.cases.applyOrElse(state(s.token).asInstanceOf[s.T], _ => Seq.empty[DataFlow[_]])
-//        })
-//        new Logic(moduleDataFlow)
-//      }
-//    }
-//  }
-//}
-//
-//case class FeatureSwitch[T0](token: Token[T0], cases: PartialFunction[T0, Seq[DataFlow[_]]]) {
-//  type T = T0
-//}
