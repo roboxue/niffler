@@ -1,7 +1,8 @@
-package com.roboxue.niffler
+package com.roboxue.niffler.scalaDSL
 
 import java.util.Optional
 
+import com.roboxue.niffler._
 import com.roboxue.niffler.execution.{AsyncExecution, ExecutionLogger}
 
 import scala.collection.JavaConverters._

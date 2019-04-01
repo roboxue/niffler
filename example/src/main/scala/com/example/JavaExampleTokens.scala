@@ -5,7 +5,8 @@ import java.nio.file.Path
 
 import com.amazonaws.auth.AWSCredentialsProvider
 import com.amazonaws.services.s3.AmazonS3
-import com.roboxue.niffler.{DataFlow, Niffler, Token}
+import com.roboxue.niffler.scalaDSL.Niffler
+import com.roboxue.niffler.{DataFlow, Token}
 
 /**
   * @author robert.xue
@@ -15,7 +16,6 @@ object JavaExampleTokens extends Niffler {
   val datasetId: Token[String] = Token("datasetId")
   val changeSetVersion: Token[Integer] = Token("number of change sets to download")
   val s3BucketName: Token[String] = Token("s3 bucket name that holds the data")
-//  val s3Region: Token[String] = Token("the region for s3 bucket")
   val awsCredentialProvider: Token[AWSCredentialsProvider] = Token("aws credentials provider")
   val localTempDownloadFolder: Token[Path] = Token("working directory for download")
   val localTempOutputFolder: Token[Path] = Token("working directory for output")
