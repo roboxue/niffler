@@ -34,11 +34,13 @@ import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
  * @since 2019-04-02
  */
 public class JavaCoding {
+
     public static String getS3Path(String datasetId) {
         return String.format("private/yanxue/%s", datasetId);
     }
 
-    public static AmazonS3 getS3Client(AWSCredentialsProvider credentialsProvider, Regions s3Region) {
+    public static AmazonS3 getS3Client(AWSCredentialsProvider credentialsProvider,
+            Regions s3Region) {
         return AmazonS3ClientBuilder.standard()
                 .withRegion(s3Region)
                 .withCredentials(credentialsProvider)
@@ -50,7 +52,7 @@ public class JavaCoding {
     }
 
     public static Path downloadAllChangesets(Path workingDir, AmazonS3 s3, String s3BucketName,
-                                             String s3BasePath, Integer changeSetVersion)
+            String s3BasePath, Integer changeSetVersion)
             throws IOException {
         workingDir.toFile().mkdirs();
         for (int i = 0; i < changeSetVersion; i++) {
@@ -74,10 +76,11 @@ public class JavaCoding {
     }
 
     public static Path decompressAllChangesets(Path downloadFolder, Path outputFolder,
-                                               Integer changeSetVersion) throws IOException {
+            Integer changeSetVersion) throws IOException {
         Path outputDirTemp = outputFolder.resolve("temp");
         for (int i = 0; i < changeSetVersion; i++) {
-            Path changesetZipName = downloadFolder.resolve(String.format("changeset-%d.zip", i + 1));
+            Path changesetZipName = downloadFolder
+                    .resolve(String.format("changeset-%d.zip", i + 1));
             CompressUtils.decompressZip(
                     changesetZipName.toFile(),
                     outputDirTemp.toFile()
@@ -87,7 +90,7 @@ public class JavaCoding {
     }
 
     public static File createFullJson(Path workingDir, Path outputDir,
-                                      Integer changeSetVersion) throws IOException {
+            Integer changeSetVersion) throws IOException {
         outputDir.toFile().mkdirs();
         Map<String, String> imageLabels = Maps.newHashMap();
         final ObjectMapper mapper = Jackson.getObjectMapper();
@@ -128,7 +131,8 @@ public class JavaCoding {
         Path fullZip = outputDir.resolve("full.zip");
         ZipOutputStream zos = new ZipOutputStream(new FileOutputStream(fullZip.toString()));
         Files.walkFileTree(workingDir, new SimpleFileVisitor<Path>() {
-            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs)
+                    throws IOException {
                 zos.putNextEntry(new ZipEntry(workingDir.relativize(file).toString()));
                 Files.copy(file, zos);
                 zos.closeEntry();
@@ -140,7 +144,7 @@ public class JavaCoding {
     }
 
     public static BoxedUnit uploadMergedDataset(File fullZip, File fullJson, AmazonS3 s3,
-                                                String s3BucketName, String s3BasePath) {
+            String s3BucketName, String s3BasePath) {
         s3.putObject(s3BucketName, String.format("%s/full.zip", s3BasePath), fullZip);
         s3.putObject(s3BucketName, String.format("%s/full.jsonl", s3BasePath), fullJson);
         return BoxedUnit.UNIT;

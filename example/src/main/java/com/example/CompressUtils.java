@@ -15,14 +15,17 @@ import java.io.IOException;
 import java.io.OutputStream;
 
 public class CompressUtils {
+
     public static void decompressTarGz(File in, File out) throws IOException {
-        try (TarArchiveInputStream fin = new TarArchiveInputStream(new GzipCompressorInputStream(new FileInputStream(in)))) {
+        try (TarArchiveInputStream fin = new TarArchiveInputStream(
+                new GzipCompressorInputStream(new FileInputStream(in)))) {
             unarchive(fin, out);
         }
     }
 
     public static void decompressTarBz(File in, File out) throws IOException {
-        try (TarArchiveInputStream fin = new TarArchiveInputStream(new BZip2CompressorInputStream(new FileInputStream(in)))) {
+        try (TarArchiveInputStream fin = new TarArchiveInputStream(
+                new BZip2CompressorInputStream(new FileInputStream(in)))) {
             unarchive(fin, out);
         }
     }

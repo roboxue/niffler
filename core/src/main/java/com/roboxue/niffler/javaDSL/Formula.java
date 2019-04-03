@@ -8,6 +8,8 @@ import com.roboxue.niffler.Token;
  * @since 2019-04-01
  */
 public interface Formula<T> {
+
     ImmutableList<Token<?>> getDependsOn();
+
     Token<T> getOutlet();
 }

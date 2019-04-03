@@ -61,37 +61,30 @@ object Token {
                                                         _className: sourcecode.Enclosing,
                                                         _fileName: sourcecode.File,
                                                         _line: sourcecode.Line): Token[T] = {
-    new Token(name, UUID.randomUUID().toString, codeName, stackTraceElement)
+    new Token(name, UUID.randomUUID().toString.replaceAll("-", ""), codeName, stackTraceElement)
   }
 
   def apply[T: TypeTag](name: String)(implicit _codeName: sourcecode.Name,
                                       _className: sourcecode.Enclosing,
                                       _fileName: sourcecode.File,
                                       _line: sourcecode.Line): Token[T] = {
-    new Token(name, UUID.randomUUID().toString, _codeName.value, stackTraceElement)
+    new Token(name, UUID.randomUUID().toString.replaceAll("-", ""), _codeName.value, stackTraceElement)
   }
 
   def accumulator[T: TypeTag](name: String, codeName: String)(implicit _codeName: sourcecode.Name,
                                                               _className: sourcecode.Enclosing,
                                                               _fileName: sourcecode.File,
                                                               _line: sourcecode.Line): AccumulatorToken[T] = {
-    new AccumulatorToken(name, UUID.randomUUID().toString, codeName, stackTraceElement)
+    new AccumulatorToken(name, UUID.randomUUID().toString.replaceAll("-", ""), codeName, stackTraceElement)
   }
 
   def accumulator[T: TypeTag](name: String)(implicit _codeName: sourcecode.Name,
                                             _className: sourcecode.Enclosing,
                                             _fileName: sourcecode.File,
                                             _line: sourcecode.Line): AccumulatorToken[T] = {
-    new AccumulatorToken(name, UUID.randomUUID().toString, _codeName.value, stackTraceElement)
+    new AccumulatorToken(name, UUID.randomUUID().toString.replaceAll("-", ""), _codeName.value, stackTraceElement)
   }
 
-//  def module(name: String, codeName: String): Module = {
-//    new Module(name, UUID.randomUUID().toString, codeName)
-//  }
-//
-//  def module(name: String)(implicit _codeName: sourcecode.Name): Module = {
-//    new Module(name, UUID.randomUUID().toString, _codeName.value)
-//  }
 }
 
 class AccumulatorToken[T: TypeTag](name: String, uuid: String, codeName: String, stackTrack: StackTraceElement)

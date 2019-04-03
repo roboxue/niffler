@@ -1,11 +1,9 @@
 package com.roboxue.niffler.scalaDSL
 
-import java.util.Optional
+import java.util.logging.{Level, Logger}
 
 import com.roboxue.niffler._
 import com.roboxue.niffler.execution.{AsyncExecution, ExecutionLogger}
-
-import scala.collection.JavaConverters._
 
 /**
   * @author robert.xue
@@ -27,5 +25,13 @@ trait Niffler {
     override def dataFlows: Iterable[DataFlow[_]] = {
       self.dataFlows ++ another.dataFlows
     }
+  }
+
+  def printGraph(logger: Logger, useCodeName: Boolean): Unit = {
+    new Logic(dataFlows).printFlowChart(logger, Level.INFO, useCodeName)
+  }
+
+  def printGraph(logger: Logger, useCodeName: Boolean, extraFlow: Iterable[DataFlow[_]]): Unit = {
+    new Logic(dataFlows ++ extraFlow).printFlowChart(logger, Level.INFO, useCodeName)
   }
 }

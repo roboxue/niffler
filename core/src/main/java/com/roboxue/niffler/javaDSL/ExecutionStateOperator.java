@@ -8,5 +8,6 @@ import com.roboxue.niffler.ExecutionStateLike;
  */
 @FunctionalInterface
 public interface ExecutionStateOperator<Result> {
+
     Result apply(ExecutionStateLike input1) throws Exception;
 }

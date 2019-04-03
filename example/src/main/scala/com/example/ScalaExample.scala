@@ -1,11 +1,12 @@
 package com.example
 
 import java.nio.file.Paths
-import java.util.logging.{Level, Logger}
+import java.util.logging.{ConsoleHandler, Handler, Level, Logger}
 
 import akka.actor.ActorSystem
 import com.amazonaws.regions.Regions
-import com.roboxue.niffler.execution.{DefaultScalaExecutionLogger, ExecutionLogger}
+import com.example.logging.NoFormatter
+import com.roboxue.niffler.execution.{ExecutionLogger, FlowChartExecutionLogger, WaterfallExecutionLogger}
 import com.roboxue.niffler.{DataFlow, ExecutionStateTracker}
 import com.roboxue.niffler.scalaDSL.Niffler
 
@@ -44,13 +45,7 @@ class ScalaExample extends Niffler {
       .dependsOn(Contract.decompressedDataset, Contract.localTempOutputFolder)
       .implBy(JavaCoding.createFullZip),
     Contract.uploadFullDataset
-      .dependsOn(
-        Contract.fullZip,
-        Contract.fullJson,
-        Contract.s3Client,
-        Contract.s3BucketName,
-        Contract.s3BasePath
-      )
+      .dependsOn(Contract.fullZip, Contract.fullJson, Contract.s3Client, Contract.s3BucketName, Contract.s3BasePath)
       .implBy(JavaCoding.uploadMergedDataset)
   )
 }
@@ -58,13 +53,18 @@ class ScalaExample extends Niffler {
 object ScalaExample {
 
   def main(args: Array[String]): Unit = {
-    val logger = Logger.getLogger("ScalaExample")
-    val niffleLogger = new DefaultScalaExecutionLogger({
-      case (msg, Some(ex)) => logger.log(Level.WARNING, msg, ex)
-      case (msg, None)     => logger.info(msg)
-    })
-    val system = ActorSystem.create()
-    val st = new ExecutionStateTracker()
+    val logger = Logger.getLogger(classOf[JavaExample].getName)
+    val h = new ConsoleHandler
+    h.setFormatter(new NoFormatter)
+    logger.addHandler(h)
+    logger.setUseParentHandlers(false)
+
+    val exampleDataflow = new ScalaExample()
+    exampleDataflow.printGraph(logger, useCodeName = true)
+    println()
+    exampleDataflow.printGraph(logger, useCodeName = false)
+    println()
+
     val extraInput = Seq(
       Contract.s3Region.initializedTo(Regions.US_WEST_2),
       Contract.s3BucketName.initializedTo("internal-eng-metamind-io"),
@@ -73,13 +73,18 @@ object ScalaExample {
       Contract.localTempDownloadFolder.initializedTo(Paths.get("/tmp/niffler/download")),
       Contract.localTempOutputFolder.initializedTo(Paths.get("/tmp/niffler/out"))
     )
+    exampleDataflow.printGraph(logger, useCodeName = true, extraInput)
+    println()
+
+    val nifflerLogger = new WaterfallExecutionLogger(logger)
+//    val nifflerLogger = new FlowChartLogger(logger)
+    val system = ActorSystem.create()
+    val st = new ExecutionStateTracker()
     try {
-      val result = new ScalaExample()
-        .asyncRun(Contract.uploadFullDataset, extraInput, Some(niffleLogger))(st)
+      exampleDataflow
+        .asyncRun(Contract.uploadFullDataset, extraInput, Some(nifflerLogger))(st)
         .withAkka(system)
         .await(Duration.Inf)
-      result.executionLog.printFlowChart(println)
-      result.executionLog.printWaterfall(println)
     } finally {
       system.terminate()
     }

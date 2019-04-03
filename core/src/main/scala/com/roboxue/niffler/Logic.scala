@@ -1,5 +1,7 @@
 package com.roboxue.niffler
 
+import java.util.logging.{Level, Logger}
+
 import com.roboxue.niffler.execution.{AsyncExecution, ExecutionLogger}
 import org.jgrapht.Graphs
 import org.jgrapht.graph.{DefaultEdge, DirectedAcyclicGraph}
@@ -52,15 +54,19 @@ class Logic(flows: Iterable[DataFlow[_]]) {
     )
   }
 
-  def printFlowChart(logger: String => Unit): Unit = {
+  def printFlowChart(logger: Logger, level: Level, useCodeName: Boolean): Unit = {
     val it: TopologicalOrderIterator[Token[_], DefaultEdge] = new TopologicalOrderIterator(dag)
-    logger("graph TD;")
+    logger.log(level, "graph TD;")
     for (t <- dag.vertexSet().asScala) {
-      logger(s"""${t.uuid.replaceAll("-", "")}["${t.name}:${t.typeDescription}"]""")
+      if (useCodeName) {
+        logger.log(level, s"""${t.uuid.replaceAll("-", "")}["${t.codeName}"]""")
+      } else {
+        logger.log(level, s"""${t.uuid.replaceAll("-", "")}["${t.name}:${t.typeDescription}"]""")
+      }
     }
     for (t <- it.asScala) {
       for (d <- Graphs.predecessorListOf(dag, t).asScala) {
-        logger(s"${t.uuid.replaceAll("-", "")} --> ${d.uuid.replaceAll("-", "")};")
+        logger.log(level, s"${t.uuid.replaceAll("-", "")} --> ${d.uuid.replaceAll("-", "")};")
       }
     }
   }

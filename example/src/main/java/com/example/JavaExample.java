@@ -2,20 +2,21 @@ package com.example;
 
 import akka.actor.ActorSystem;
 import com.amazonaws.regions.Regions;
+import com.example.logging.NoFormatter;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.roboxue.niffler.DataFlow;
 import com.roboxue.niffler.ExecutionState;
 import com.roboxue.niffler.ExecutionStateTracker;
-import com.roboxue.niffler.execution.DefaultJavaExecutionLogger;
 import com.roboxue.niffler.execution.ExecutionLogger;
-import com.roboxue.niffler.execution.ExecutionResult;
+import com.roboxue.niffler.execution.WaterfallExecutionLogger;
 import com.roboxue.niffler.javaDSL.Niffler;
-import scala.concurrent.duration.Duration;
-import scala.runtime.BoxedUnit;
-
 import java.nio.file.Paths;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Handler;
+import java.util.logging.Level;
 import java.util.logging.Logger;
+import scala.concurrent.duration.Duration;
 
 /**
  * @author robert.xue
@@ -74,25 +75,39 @@ public class JavaExample implements Niffler {
     }
 
     public static void main(String[] args) {
-        Logger logger = Logger.getLogger("JavaExample");
-        ExecutionLogger nifflerLogger = new DefaultJavaExecutionLogger(logger);
-        ExecutionStateTracker st = new ExecutionStateTracker(ExecutionState.empty());
+        Logger logger = Logger.getLogger(JavaExample.class.getName());
+        Handler h = new ConsoleHandler();
+        h.setFormatter(new NoFormatter());
+        logger.addHandler(h);
+        logger.setUseParentHandlers(false);
+
+        JavaExample exampleDataflow = new JavaExample();
+        exampleDataflow.printGraph(logger, true);
+        System.out.println();
+        exampleDataflow.printGraph(logger, false);
+        System.out.println();
+
         Iterable<DataFlow<?>> extraInput = Lists.newArrayList(
                 Contract.s3Region().initializedTo(Regions.US_WEST_2),
                 Contract.s3BucketName().initializedTo("internal-eng-metamind-io"),
                 Contract.datasetId().initializedTo("dataset-cars"),
                 Contract.changeSetVersion().initializedTo(2),
-                Contract.localTempDownloadFolder().initializedTo(Paths.get("/tmp/niffler/download")),
+                Contract.localTempDownloadFolder()
+                        .initializedTo(Paths.get("/tmp/niffler/download")),
                 Contract.localTempOutputFolder().initializedTo(Paths.get("/tmp/niffler/out"))
         );
+        exampleDataflow.printGraph(logger, false, extraInput);
+        System.out.println();
+
+        ExecutionLogger nifflerLogger = new WaterfallExecutionLogger(logger, Level.INFO);
+//        ExecutionLogger nifflerLogger = new FlowChartExecutionLogger(logger, Level.INFO);
         ActorSystem system = ActorSystem.create();
+        ExecutionStateTracker st = new ExecutionStateTracker(ExecutionState.empty());
         try {
-            ExecutionResult<BoxedUnit> result = new JavaExample()
+            exampleDataflow
                     .asyncRun(Contract.uploadFullDataset(), extraInput, st, nifflerLogger)
                     .withAkka(system)
                     .await(Duration.Inf());
-            result.executionLog().printFlowChartJava(System.out::println);
-            result.executionLog().printWaterfallJava(System.out::println);
         } finally {
             system.terminate();
         }
