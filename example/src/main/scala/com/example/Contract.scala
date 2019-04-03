@@ -12,7 +12,7 @@ import com.roboxue.niffler.Token
   * @author robert.xue
   * @since 220
   */
-object JavaExampleTokens {
+object Contract {
   val datasetId: Token[String] = Token("datasetId")
   val changeSetVersion: Token[Integer] = Token("number of change sets to download")
   val s3BucketName: Token[String] = Token("s3 bucket name that holds the data")
